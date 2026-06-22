@@ -89,13 +89,13 @@ BEGIN
     BEGIN
         BLOCK "040904e4"
         BEGIN
-            VALUE "CompanyName", "com.zeepubs" "\0"
-            VALUE "FileDescription", "zeetools" "\0"
+            VALUE "CompanyName", "ZeePubs" "\0"
+            VALUE "FileDescription", "ZeeTools - EPUB Management Toolset" "\0"
             VALUE "FileVersion", VERSION_AS_STRING "\0"
             VALUE "InternalName", "zeetools" "\0"
-            VALUE "LegalCopyright", "Copyright (C) 2026 com.zeepubs. All rights reserved." "\0"
+            VALUE "LegalCopyright", "Copyright (C) 2026 ZeePubs. All rights reserved." "\0"
             VALUE "OriginalFilename", "zeetools.exe" "\0"
-            VALUE "ProductName", "zeetools" "\0"
+            VALUE "ProductName", "ZeeTools" "\0"
             VALUE "ProductVersion", VERSION_AS_STRING "\0"
         END
     END

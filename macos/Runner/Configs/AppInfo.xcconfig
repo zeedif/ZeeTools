@@ -5,10 +5,10 @@
 // 'flutter create' template.
 
 // The application's name. By default this is also the title of the Flutter window.
-PRODUCT_NAME = zeetools
+PRODUCT_NAME = ZeeTools
 
 // The application's bundle identifier
 PRODUCT_BUNDLE_IDENTIFIER = com.zeepubs.zeetools
 
 // The copyright displayed in application information
-PRODUCT_COPYRIGHT = Copyright © 2026 com.zeepubs. All rights reserved.
+PRODUCT_COPYRIGHT = Copyright © 2026 ZeePubs. All rights reserved.
