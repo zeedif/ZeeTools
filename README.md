@@ -24,7 +24,7 @@ Asegúrate de tener instalado lo siguiente en tu sistema:
 
 1. **Clona el repositorio**:
    ```bash
-   git clone https://...
+   git clone https://github.com/zeedif/zeetools
    ```
 
 2. **Navega a la carpeta del proyecto**:
@@ -39,7 +39,7 @@ Asegúrate de tener instalado lo siguiente en tu sistema:
 
 4. **Genera los archivos de código necesarios** (modelos, serialización, etc.):
    ```bash
-   dart run build_runner build --delete-conflicting-outputs
+   dart run build_runner build --enable-experiment=primary-constructors
    ```
 
 ### Configuración de Firmado para Android (Release)
