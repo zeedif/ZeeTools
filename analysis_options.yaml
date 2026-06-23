@@ -3,3 +3,7 @@ include: package:flutter_lints/flutter.yaml
 formatter:
   page_width: 120
   trailing_commas: preserve
+
+analyzer:
+  enable-experiment:
+    - primary-constructors
