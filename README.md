@@ -1,6 +1,6 @@
 # ZeeTools
 
-Esta es una aplicación multiplataforma desarrollada en Flutter que implementa una arquitectura limpia y modular orientada a características (*Feature-First*). Sigue las mejores prácticas en la separación de responsabilidades para una mayor escalabilidad y mantenibilidad. Utiliza `freezed` para la generación de modelos inmutables y `json_serializable` para la serialización de datos.
+Esta es una aplicación de escritorio desarrollada en Flutter que implementa una arquitectura limpia y modular orientada a características (*Feature-First*). Sigue las mejores prácticas en la separación de responsabilidades para una mayor escalabilidad y mantenibilidad. Utiliza `freezed` para la generación de modelos inmutables y `json_serializable` para la serialización de datos.
 
 ZeeTools es un conjunto de herramientas enfocadas en la gestión y creación de archivos EPUB, incluyendo:
 - Búsqueda y reemplazo con soporte avanzado para Regex y grupos de captura.
@@ -19,6 +19,33 @@ Asegúrate de tener instalado lo siguiente en tu sistema:
 - Dart SDK (versión 3.12 o superior), que se incluye con Flutter.
 - Un editor de código compatible como Visual Studio Code o Android Studio.
 - *Dependencias del sistema:* Pandoc, 7zip, OptiPNG, JpegOptim.
+
+**Linux**
+
+Instala las dependencias de compilación de Flutter para escritorio:
+
+```bash
+sudo apt-get update
+sudo apt-get install clang cmake ninja-build pkg-config libgtk-3-dev liblzma-dev libstdc++-12-dev
+```
+
+**macOS**
+
+Instala las herramientas de línea de comandos de Xcode:
+
+```bash
+xcode-select --install
+```
+
+Acepta la licencia de Xcode antes de compilar:
+
+```bash
+sudo xcodebuild -license
+```
+
+**Windows**
+
+Instala [Visual Studio 2022](https://visualstudio.microsoft.com/) con la carga de trabajo **"Desarrollo de escritorio con C++"**. Flutter requiere este toolchain para compilar aplicaciones de escritorio en Windows.
 
 ### Preparación del Proyecto
 
@@ -42,57 +69,6 @@ Asegúrate de tener instalado lo siguiente en tu sistema:
    dart run build_runner build --enable-experiment=primary-constructors
    ```
 
-### Configuración de Firmado para Android (Release)
-
-Para compilar y publicar la aplicación en Google Play, es obligatorio firmarla digitalmente. Sigue estos pasos para generar tu clave de firma.
-
-**Paso 1: Generar la Clave de Firma (Keystore)**
-
-Este comando creará un archivo `upload-keystore.jks`, que es tu clave privada. Guárdalo en un lugar seguro y *nunca lo subas a un repositorio de código*.
-
-Abre una terminal en la raíz de tu proyecto y ejecuta el siguiente comando:
-
-```bash
-"C:\Program Files\Android Studio\jbr\bin\keytool" -genkey -v -keystore android/app/upload-keystore.jks -keyalg RSA -keysize 2048 -validity 10000 -alias upload
-```
-
-La terminal te pedirá varios datos:
--   **Contraseña del almacén de claves**: Ingresa una contraseña segura y anótala. No verás los caracteres al escribir.
--   **Datos personales**: Rellena tu nombre, organización, ciudad, etc.
--   **Confirmación**: Escribe `si` o `yes` para confirmar.
--   **Contraseña para el alias `<upload>`**: *Vuelve a introducir la misma contraseña del primer paso* para simplificar la configuración.
-
-Al finalizar, se creará el archivo en `zeetools/android/app/upload-keystore.jks`.
-
-**Paso 2: Configurar las Credenciales**
-
-Crea un archivo llamado `key.properties` dentro de la carpeta `android/` con el siguiente contenido:
-
-```properties
-# ¡ADVERTENCIA! No subas este archivo a repositorios públicos.
-
-storePassword=la_contraseña_que_creaste
-keyPassword=la_misma_contraseña_de_arriba
-keyAlias=upload
-storeFile=app/upload-keystore.jks
-```
--   Reemplaza `la_contraseña_que_creaste` con la contraseña que definiste en el paso anterior.
--   `keyAlias` debe ser `upload` para coincidir con el comando.
--   La ruta `storeFile` es relativa a la carpeta `android/`.
-
-**Paso 3: Configurar Gradle**
-
-El archivo `android/app/build.gradle.kts` ya incluye la configuración `signingConfigs.create("release")` que lee las propiedades del archivo `key.properties`. Solo necesitas cambiar `signingConfigs.getByName("debug")` por `signingConfigs.getByName("release")` en la sección buildTypes:
-
-```kotlin
-buildTypes {
-    release {
-        // Cambia "debug" por "release" para usar tu keystore de producción
-        signingConfig = signingConfigs.getByName("release")
-    }
-}
-```
-
 ### Ejecución y Compilación
 
 Esta sección describe cómo ejecutar el proyecto en modo de desarrollo y generar versiones de producción.
@@ -103,7 +79,7 @@ Este proyecto requiere un archivo de variables de entorno para gestionar configu
 
 Por seguridad, **este archivo no se encuentra en el repositorio y se excluye en el .gitignore**. Sin embargo, se incluyen archivos de ejemplo en la carpeta `lib/` para facilitar las pruebas, incluyendo activadores para el Flavor de conexión con ZeePubs Server:
 
--   **`lib/.env.dev`**: Contiene la configuración para el entorno de desarrollo local.
+- **`lib/.env.dev`**: Contiene la configuración para el entorno de desarrollo local.
     ```json
     {
       "IS_ZEEPUBS_CLIENT": "true",
@@ -117,43 +93,33 @@ Por seguridad, **este archivo no se encuentra en el repositorio y se excluye en 
 
 **Ejecución en Modo Desarrollo**
 
-Para ejecutar la aplicación con las configuraciones de desarrollo, utiliza el archivo `.env.dev`:
+Selecciona el dispositivo de destino según tu sistema operativo:
+
 ```bash
-flutter run --dart-define-from-file=lib/.env.dev
+# Windows
+flutter run -d windows --dart-define-from-file=lib/.env.dev
+
+# Linux
+flutter run -d linux --dart-define-from-file=lib/.env.dev
+
+# macOS
+flutter run -d macos --dart-define-from-file=lib/.env.dev
 ```
 
 **Compilación para Producción**
 
-Dependiendo de las necesidades (Escritorio, Web o Móvil), se puede compilar la aplicación asegurando inyectar las variables de entorno especificadas en el archivo `.env`:
-
-- **Escritorio (Windows / Linux / macOS)**:
 ```bash
+# Windows
 flutter build windows --dart-define-from-file=lib/.env
+
+# Linux
 flutter build linux --dart-define-from-file=lib/.env
+
+# macOS
 flutter build macos --dart-define-from-file=lib/.env
 ```
 
-- **Móvil (APK / App Bundle)**:
-```bash
-flutter build apk --dart-define-from-file=lib/.env
-flutter build appbundle --dart-define-from-file=lib/.env
-```
-
-**Ofuscación del Código**
-
-Para mayor seguridad en producción, es recomendable ofuscar el código de la aplicación. La ofuscación renombra las funciones y clases en el código compilado, lo que dificulta el proceso de ingeniería inversa. **Nota:** Este proceso no encripta los recursos ni protege completamente contra la ingeniería inversa, pero sí aumenta la seguridad al hacer el código más difícil de interpretar.
-
-```bash
-flutter build windows --obfuscate --split-debug-info=build/debug-info
-```
-
-El parámetro `--obfuscate` aplica la ofuscación y `--split-debug-info` especifica la carpeta en la que se generarán los archivos de símbolos para interpretación futura de errores. **Importante:** Asegúrate de guardar los archivos de símbolos generados en `build/debug-info`, ya que son necesarios para descifrar los rastros de errores y excepciones en los registros de una aplicación en producción ofuscada.
-
-Si necesitas revisar un rastro de errores obfuscado, usa el archivo de símbolos generado al momento de la compilación para obtener un rastro legible, de la siguiente forma:
-
-```bash
-flutter symbolize -i <archivo_de_trazo> -d build/debug-info/app.windows-x64.symbols
-```
+Los artefactos de salida se generan en `build/<platform>/release/`.
 
 ### Estructura del Proyecto
 
@@ -172,6 +138,10 @@ lib/
 ├── common/                             # Infraestructura transversal y compartida
 │   ├── config/                         # Configuraciones (flavors, entornos)
 │   ├── constants/                      # Constantes globales de la app
+│   ├── epub/                           # Infraestructura EPUB compartida entre features
+│   │   ├── models/                     # EpubManifestItem, EpubFailure
+│   │   ├── utils/                      # EpubMediaTypes, EpubPathUtils
+│   │   └── repositories/              # EpubRepository (interfaz + impl)
 │   ├── file/                           # Wrappers para file_picker o manipulación de I/O
 │   ├── process/                        # Wrappers para ejecutar binarios (Pandoc, 7zip, OptiPNG, JpegOptim)
 │   ├── theme/                          # Temas, tipografías y colores
@@ -190,7 +160,7 @@ lib/
 │   │   └── presentation/               # BLoCs (Theme, Lang), UI de Ajustes
 │   │
 │   ├── search_replace/                 # Herramienta: Búsqueda y Reemplazo (Regex)
-│   │   ├── core/                       # Entidades (Log, MatchResult), Repositorios Abstractos
+│   │   ├── core/                       # Entidades (SearchOptions, MatchResult)
 │   │   ├── data/                       # Implementación (Lógica de Regex, I/O de archivos)
 │   │   └── presentation/               # BLoCs, UI (Coloreado Regex, Visor de Logs), Widgets
 │   │
@@ -235,7 +205,8 @@ lib/
 - `flutter_bloc`: Facilita la gestión de estado de la aplicación mediante el patrón Bloc, centralizando la lógica de negocio y promoviendo una arquitectura más escalable.
 - `go_router`: Simplifica la navegación en la aplicación, permitiendo gestionar rutas dinámicas de forma clara y estructurada.
 - `archive`: Para la manipulación local de compresión/descompresión de archivos EPUB.
-- `extended_text`: Para habilitar el coloreado sintáctico de Regex en los campos de texto de la interfaz.
+- `xml`: Para el parseo de los documentos `container.xml` y OPF del estándar EPUB 3.
+- `file_picker`: Para los diálogos nativos de apertura y guardado de archivos en cada plataforma de escritorio.
 
 ### Añadiendo Pantallas
 
@@ -246,7 +217,6 @@ Ejemplo de configuración de rutas:
 ```dart
 import 'package:go_router/go_router.dart';
 
-// Definición de rutas
 final GoRouter router = GoRouter(
   routes: [
     GoRoute(

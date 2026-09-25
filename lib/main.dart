@@ -1,43 +1,43 @@
-import 'package:flutter/material.dart';
-import 'package:flutter_bloc/flutter_bloc.dart';
+import 'dart:io';
 
+import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:window_manager/window_manager.dart';
+
+import 'app.dart';
 import 'inject_dependencies.dart';
-import 'common/router/app_router.dart';
-import 'common/theme/app_theme.dart';
-import 'common/window/window_setup.dart';
-import 'features/settings/presentation/cubit/settings_cubit.dart';
-import 'features/settings/presentation/cubit/settings_state.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-
   await injectDependencies();
 
-  final windowSetup = WindowSetup(prefs: getIt());
-  await windowSetup.init();
+  if (Platform.isWindows || Platform.isLinux || Platform.isMacOS) {
+    await windowManager.ensureInitialized();
+    final prefs = getIt<SharedPreferences>();
+    final width = prefs.getDouble('window_width') ?? 1024.0;
+    final height = prefs.getDouble('window_height') ?? 768.0;
+    final dx = prefs.getDouble('window_x');
+    final dy = prefs.getDouble('window_y');
 
-  runApp(const MyApp());
-}
-
-class MyApp extends StatelessWidget {
-  const MyApp({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return BlocProvider(
-      create: (_) => getIt<SettingsCubit>(),
-      child: BlocBuilder<SettingsCubit, SettingsState>(
-        builder: (context, state) {
-          return MaterialApp.router(
-            title: 'ZeeTools',
-            debugShowCheckedModeBanner: false,
-            themeMode: state.preferences.themeMode,
-            theme: AppTheme.lightTheme,
-            darkTheme: AppTheme.darkTheme,
-            routerConfig: appRouter,
-          );
-        },
+    await windowManager.waitUntilReadyToShow(
+      WindowOptions(
+        size: Size(width, height),
+        minimumSize: const Size(360, 360),
+        center: dx == null || dy == null,
+        backgroundColor: Colors.transparent,
+        skipTaskbar: false,
+        titleBarStyle: TitleBarStyle.normal,
+        title: 'ZeeTools',
       ),
+      () async {
+        if (dx != null && dy != null) {
+          await windowManager.setPosition(Offset(dx, dy));
+        }
+        await windowManager.show();
+        await windowManager.focus();
+      },
     );
   }
+
+  runApp(const MyApp());
 }

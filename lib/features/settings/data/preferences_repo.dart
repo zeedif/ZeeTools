@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import '../../core/models/preferences.dart';
+
+import '../domain/preferences.dart';
 
 abstract interface class PreferencesRepository {
   Preferences getPreferences();

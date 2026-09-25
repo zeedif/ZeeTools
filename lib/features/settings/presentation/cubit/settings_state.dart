@@ -1,5 +1,6 @@
 import 'package:freezed_annotation/freezed_annotation.dart';
-import '../../core/models/preferences.dart';
+
+import '../../domain/preferences.dart';
 
 part 'settings_state.freezed.dart';
 

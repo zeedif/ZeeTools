@@ -1,9 +1,14 @@
 include: package:flutter_lints/flutter.yaml
 
 formatter:
-  page_width: 120
+  page_width: 999999
   trailing_commas: preserve
 
 analyzer:
   enable-experiment:
     - primary-constructors
+  exclude:
+    - build/**
+    - windows/**
+    - macos/**
+    - linux/**
