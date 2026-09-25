@@ -254,23 +254,39 @@ class SearchReplaceRepositoryImpl implements SearchReplaceRepository {
     return buf.toString();
   }
 
-  // Adapta el casing del reemplazo al del texto encontrado: FOO->FOO, foo->foo, Foo->Foo.
-  // Cualquier otro casing (mixto) deja el reemplazo tal cual se escribió.
   String _applyPreserveCase(String original, String replacement) {
     if (original.isEmpty || replacement.isEmpty) return replacement;
-    if (!original.contains(RegExp(r'[a-zA-Z]'))) return replacement;
 
-    final upper = original.toUpperCase();
-    final lower = original.toLowerCase();
-    if (original == upper && original != lower) return replacement.toUpperCase();
-    if (original == lower && original != upper) return replacement.toLowerCase();
-
-    final firstIsUpper = original[0] != original[0].toLowerCase();
-    final restIsLower = original.substring(1) == original.substring(1).toLowerCase();
-    if (firstIsUpper && restIsLower) {
-      return replacement[0].toUpperCase() + replacement.substring(1).toLowerCase();
+    final sameHyphenSegments = _hasMatchingSegments(original, replacement, '-');
+    final sameUnderscoreSegments = _hasMatchingSegments(original, replacement, '_');
+    if (sameHyphenSegments && !sameUnderscoreSegments) {
+      return _applyPreserveCasePerSegment(original, replacement, '-');
+    }
+    if (sameUnderscoreSegments && !sameHyphenSegments) {
+      return _applyPreserveCasePerSegment(original, replacement, '_');
     }
 
+    if (original.toUpperCase() == original) return replacement.toUpperCase();
+    if (original.toLowerCase() == original) return replacement.toLowerCase();
+
+    // Solo la primera letra del reemplazo cambia de caso; el resto queda tal cual se escribió.
+    final firstChar = original[0];
+    if (firstChar.toLowerCase() != firstChar) return replacement[0].toUpperCase() + replacement.substring(1);
+    if (firstChar.toUpperCase() != firstChar) return replacement[0].toLowerCase() + replacement.substring(1);
+
     return replacement;
+  }
+
+  bool _hasMatchingSegments(String original, String replacement, String separator) {
+    if (!original.contains(separator) || !replacement.contains(separator)) return false;
+    return original.split(separator).length == replacement.split(separator).length;
+  }
+
+  String _applyPreserveCasePerSegment(String original, String replacement, String separator) {
+    final originalParts = original.split(separator);
+    final replacementParts = replacement.split(separator);
+    return [
+      for (var i = 0; i < replacementParts.length; i++) _applyPreserveCase(originalParts[i], replacementParts[i]),
+    ].join(separator);
   }
 }

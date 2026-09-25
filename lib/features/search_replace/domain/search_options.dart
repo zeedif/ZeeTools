@@ -9,13 +9,15 @@ sealed class SearchOptions with _$SearchOptions {
   const factory SearchOptions({
     required String pattern,
     @Default(false) bool isRegex,
-    @Default(true) bool isCaseSensitive,
+    @Default(false) bool isCaseSensitive,
+    @Default(false) bool isWholeWord,
     @Default([]) List<String> selectedFileIds,
   }) = _SearchOptions;
 
   RegExp? buildRegExp() {
     if (pattern.isEmpty) return null;
-    final source = isRegex ? pattern : RegExp.escape(pattern);
+    var source = isRegex ? pattern : RegExp.escape(pattern);
+    if (isWholeWord) source = _wrapWholeWord(source);
     return RegExp(
       source,
       caseSensitive: isCaseSensitive,
@@ -23,6 +25,17 @@ sealed class SearchOptions with _$SearchOptions {
       dotAll: false,
       unicode: true,
     );
+  }
+
+  // \b solo funciona como frontera junto a un carácter de palabra; se omite en
+  // el extremo que no lo sea.
+  String _wrapWholeWord(String source) {
+    if (source.isEmpty) return source;
+    final wordChar = RegExp(r'\w');
+    var result = source;
+    if (wordChar.hasMatch(result[0])) result = '\\b$result';
+    if (wordChar.hasMatch(result[result.length - 1])) result = '$result\\b';
+    return result;
   }
 
   String? validate() {

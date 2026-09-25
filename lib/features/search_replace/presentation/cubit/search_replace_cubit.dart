@@ -10,18 +10,18 @@ import '../../../../common/utils/either.dart';
 import '../../domain/file_selection_profile.dart';
 import '../../domain/match_result.dart';
 import '../../domain/search_options.dart';
-import '../../data/pill_order_repo.dart';
 import '../../data/search_replace_repo.dart';
+import '../../data/search_replace_settings_repo.dart';
 
 part 'search_replace_state.dart';
 part 'search_replace_cubit.freezed.dart';
 
 class SearchReplaceCubit extends Cubit<SearchReplaceState> {
-  SearchReplaceCubit(this._epubRepo, this._searchReplaceRepo, this._pillOrderRepo) : super(const SearchReplaceState.idle());
+  SearchReplaceCubit(this._epubRepo, this._searchReplaceRepo, this._settingsRepo) : super(const SearchReplaceState.idle());
 
   final EpubRepository _epubRepo;
   final SearchReplaceRepository _searchReplaceRepo;
-  final PillOrderRepository _pillOrderRepo;
+  final SearchReplaceSettingsRepository _settingsRepo;
 
   // Guardan la seguridad ante llamadas concurrentes a nivel de cubit — no
   // dependen de que la UI deshabilite un botón vía isProcessing, así que
@@ -57,9 +57,13 @@ class SearchReplaceCubit extends Cubit<SearchReplaceState> {
     emit(
       SearchReplaceState.ready(
         epubs: epubs,
-        pillOrder: _pillOrderRepo.getOrder(),
-        groupFilesByPillOrder: _pillOrderRepo.getGroupFilesByPillOrder(),
-        sortAscending: _pillOrderRepo.getSortAscending(),
+        pillOrder: _settingsRepo.getOrder(),
+        groupFilesByPillOrder: _settingsRepo.getGroupFilesByPillOrder(),
+        sortAscending: _settingsRepo.getSortAscending(),
+        isRegexMode: _settingsRepo.getIsRegexMode(),
+        isCaseSensitive: _settingsRepo.getIsCaseSensitive(),
+        isWholeWord: _settingsRepo.getIsWholeWord(),
+        preserveCase: _settingsRepo.getPreserveCase(),
       ),
     );
   }
@@ -191,7 +195,7 @@ class SearchReplaceCubit extends Cubit<SearchReplaceState> {
     final ready = _ready;
     if (ready == null) return;
     emit(ready.copyWith(pillOrder: order));
-    _pillOrderRepo.saveOrder(order);
+    _settingsRepo.saveOrder(order);
   }
 
   void toggleGroupFilesByPillOrder() {
@@ -199,7 +203,7 @@ class SearchReplaceCubit extends Cubit<SearchReplaceState> {
     if (ready == null) return;
     final next = !ready.groupFilesByPillOrder;
     emit(ready.copyWith(groupFilesByPillOrder: next));
-    _pillOrderRepo.saveGroupFilesByPillOrder(next);
+    _settingsRepo.saveGroupFilesByPillOrder(next);
   }
 
   void toggleSortAscending() {
@@ -207,7 +211,7 @@ class SearchReplaceCubit extends Cubit<SearchReplaceState> {
     if (ready == null) return;
     final next = !ready.sortAscending;
     emit(ready.copyWith(sortAscending: next));
-    _pillOrderRepo.saveSortAscending(next);
+    _settingsRepo.saveSortAscending(next);
   }
 
   // ── Patrón / opciones ─────────────────────────────────────────────────────
@@ -248,18 +252,31 @@ class SearchReplaceCubit extends Cubit<SearchReplaceState> {
         lastReplacedCount: null,
       ),
     );
+    _settingsRepo.saveIsRegexMode(newMode);
   }
 
   void toggleCaseSensitivity() {
     final ready = _ready;
     if (ready == null) return;
-    emit(ready.copyWith(isCaseSensitive: !ready.isCaseSensitive, lastReplacedCount: null));
+    final next = !ready.isCaseSensitive;
+    emit(ready.copyWith(isCaseSensitive: next, lastReplacedCount: null));
+    _settingsRepo.saveIsCaseSensitive(next);
+  }
+
+  void toggleWholeWord() {
+    final ready = _ready;
+    if (ready == null) return;
+    final next = !ready.isWholeWord;
+    emit(ready.copyWith(isWholeWord: next, lastReplacedCount: null));
+    _settingsRepo.saveIsWholeWord(next);
   }
 
   void togglePreserveCase() {
     final ready = _ready;
     if (ready == null) return;
-    emit(ready.copyWith(preserveCase: !ready.preserveCase, lastReplacedCount: null));
+    final next = !ready.preserveCase;
+    emit(ready.copyWith(preserveCase: next, lastReplacedCount: null));
+    _settingsRepo.savePreserveCase(next);
   }
 
   // ── Búsqueda / reemplazo ───────────────────────────────────────────────────
@@ -446,6 +463,7 @@ class SearchReplaceCubit extends Cubit<SearchReplaceState> {
     pattern: ready.searchPattern,
     isRegex: ready.isRegexMode,
     isCaseSensitive: ready.isCaseSensitive,
+    isWholeWord: ready.isWholeWord,
     selectedFileIds: const [],
   );
 

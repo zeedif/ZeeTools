@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '/common/theme/app_dimensions.dart';
 import '/common/widgets/file_kind_icon.dart';
 import '/common/widgets/selection_pill.dart';
 import '../../../domain/file_selection_profile.dart';
@@ -71,13 +72,18 @@ class _ProfilePillsRowState extends State<ProfilePillsRow> {
   Widget _pill(FileSelectionProfile p, {Widget? trailing}) {
     final active = widget.isActive(p);
     final kind = p.fileKind;
+    final leading = kind != null ? FileKindIcon(kind: kind, selected: active, size: 14) : (p._icon != null ? Icon(p._icon) : null);
     return SelectionPill(
-      label: p.label,
-      icon: p._icon,
-      leading: kind == null ? null : FileKindIcon(kind: kind, selected: active, size: 14),
-      trailing: trailing,
       selected: active,
       onTap: () => widget.onTap(p),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (leading != null) ...[leading, const SizedBox(width: AppSpacing.small)],
+          Text(p.label),
+          if (trailing != null) ...[const SizedBox(width: AppSpacing.small), trailing],
+        ],
+      ),
     );
   }
 

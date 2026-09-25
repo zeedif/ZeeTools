@@ -1,8 +1,14 @@
 # Aviso de licencia
 
-Los archivos svg de esta carpeta provienen sin modificar de
-[material-extensions/vscode-material-icon-theme](https://github.com/material-extensions/vscode-material-icon-theme),
-licenciado bajo MIT.
+Los archivos svg de esta carpeta provienen de dos fuentes, sin modificar en ambos casos.
+
+## Iconos de tipo de archivo
+
+`css.svg`, `document.svg`, `epub.svg`, `html.svg`, `javascript.svg`, `svg.svg` y `xml.svg` provienen de [material-extensions/vscode-material-icon-theme](https://github.com/material-extensions/vscode-material-icon-theme), licenciado bajo MIT.
+
+## Iconos de búsqueda y reemplazo
+
+`case-sensitive.svg`, `regex.svg`, `whole-word.svg` y `preserve-case.svg` provienen de los [codicons de VS Code](https://github.com/microsoft/vscode-codicons) (© Microsoft Corporation), licenciados bajo [Creative Commons Attribution 4.0 International (CC BY 4.0)](https://github.com/microsoft/vscode-codicons/blob/main/LICENSE).
 
 ```
 The MIT License (MIT)

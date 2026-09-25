@@ -9,6 +9,7 @@ import '/common/epub/models/loaded_epub.dart';
 import '/common/widgets/resizable_split_panel.dart';
 import '/common/widgets/selection_pill.dart';
 import '/common/widgets/speed_dial.dart';
+import '/common/widgets/svg_icon.dart';
 import '../cubit/search_replace_cubit.dart';
 import '../../domain/file_selection_profile.dart';
 import '../../domain/match_result.dart';
@@ -237,7 +238,11 @@ class _LoadingPane extends StatelessWidget {
   Widget build(BuildContext context) => Center(
     child: Column(
       mainAxisSize: MainAxisSize.min,
-      children: [const CircularProgressIndicator(), const SizedBox(height: 16), Text(message, textAlign: TextAlign.center)],
+      children: [
+        const CircularProgressIndicator(),
+        const SizedBox(height: 16),
+        Text(message, textAlign: TextAlign.center),
+      ],
     ),
   );
 }
@@ -565,6 +570,7 @@ typedef _SearchFormData = ({
   String replacePattern,
   bool isRegexMode,
   bool isCaseSensitive,
+  bool isWholeWord,
   bool preserveCase,
   String? patternError,
   bool isProcessing,
@@ -585,6 +591,7 @@ class _SearchForm extends StatelessWidget {
           replacePattern: s.replacePattern,
           isRegexMode: s.isRegexMode,
           isCaseSensitive: s.isCaseSensitive,
+          isWholeWord: s.isWholeWord,
           preserveCase: s.preserveCase,
           patternError: s.patternError,
           isProcessing: s.isProcessing,
@@ -604,13 +611,26 @@ class _SearchForm extends StatelessWidget {
               hintText: s.isRegexMode ? r'(\w+)\s+\1' : 'Texto a buscar…',
               onChanged: cubit.changePattern,
               suffixIcons: [
-                SelectionPill(dense: true, label: '.*', selected: s.isRegexMode, tooltip: 'Modo Regex', onTap: cubit.toggleRegexMode),
                 SelectionPill(
                   dense: true,
-                  label: 'Aa',
+                  selected: s.isRegexMode,
+                  tooltip: 'Modo Regex',
+                  onTap: cubit.toggleRegexMode,
+                  child: const SvgIcon('assets/icons/regex.svg'),
+                ),
+                SelectionPill(
+                  dense: true,
                   selected: s.isCaseSensitive,
-                  tooltip: 'Distinguir mayúsculas',
+                  tooltip: 'Coincidir mayúsculas y minúsculas',
                   onTap: cubit.toggleCaseSensitivity,
+                  child: const SvgIcon('assets/icons/case-sensitive.svg'),
+                ),
+                SelectionPill(
+                  dense: true,
+                  selected: s.isWholeWord,
+                  tooltip: 'Solo palabras completas',
+                  onTap: cubit.toggleWholeWord,
+                  child: const SvgIcon('assets/icons/whole-word.svg'),
                 ),
                 _SuffixIconButton(
                   icon: Icons.search,
@@ -629,10 +649,10 @@ class _SearchForm extends StatelessWidget {
               suffixIcons: [
                 SelectionPill(
                   dense: true,
-                  label: 'Ab',
                   selected: s.preserveCase,
                   tooltip: 'Conservar mayúsculas/minúsculas',
                   onTap: cubit.togglePreserveCase,
+                  child: const SvgIcon('assets/icons/preserve-case.svg'),
                 ),
                 _SuffixIconButton(
                   icon: Icons.find_replace_rounded,

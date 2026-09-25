@@ -69,11 +69,17 @@ class FileSelectorWidget extends StatelessWidget {
                   Expanded(child: Text(countLabel, style: tt.labelSmall?.copyWith(color: cs.onSurfaceVariant))),
                   SelectionPill(
                     dense: true,
-                    label: 'Agrupar',
-                    icon: groupByPillOrder ? Icons.layers : Icons.layers_outlined,
                     selected: groupByPillOrder,
                     tooltip: 'Agrupar archivos según el orden de los pills',
                     onTap: onToggleGroupByPillOrder,
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(groupByPillOrder ? Icons.layers : Icons.layers_outlined),
+                        const SizedBox(width: AppSpacing.small),
+                        const Text('Agrupar'),
+                      ],
+                    ),
                   ),
                   Tooltip(
                     message: sortAscending ? 'Orden alfabético ascendente' : 'Orden alfabético descendente',

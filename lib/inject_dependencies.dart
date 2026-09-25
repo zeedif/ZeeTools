@@ -5,8 +5,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'common/epub/repositories/epub_repo.dart';
 import 'common/widgets/speed_dial.dart';
 import 'features/home/data/layout_repo.dart';
-import 'features/search_replace/data/pill_order_repo.dart';
 import 'features/search_replace/data/search_replace_repo.dart';
+import 'features/search_replace/data/search_replace_settings_repo.dart';
 import 'features/search_replace/presentation/cubit/search_replace_cubit.dart';
 import 'features/settings/data/preferences_repo.dart';
 import 'features/settings/presentation/cubit/settings_cubit.dart';
@@ -23,7 +23,7 @@ Future<void> injectDependencies() async {
   getIt.registerLazySingleton<SearchReplaceRepository>(() => SearchReplaceRepositoryImpl(getIt()));
   getIt.registerLazySingleton<PreferencesRepository>(() => PreferencesRepositoryImpl(getIt()));
   getIt.registerLazySingleton<LayoutRepository>(() => LayoutRepositoryImpl(getIt()));
-  getIt.registerLazySingleton<PillOrderRepository>(() => PillOrderRepositoryImpl(getIt()));
+  getIt.registerLazySingleton<SearchReplaceSettingsRepository>(() => SearchReplaceSettingsRepositoryImpl(getIt()));
 
   // Cubits
   getIt.registerFactory<SearchReplaceCubit>(() => SearchReplaceCubit(getIt(), getIt(), getIt()));
