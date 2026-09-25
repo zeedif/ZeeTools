@@ -68,6 +68,7 @@ class _RegexTextFieldState extends State<RegexTextField> {
       decoration: InputDecoration(
         labelText: widget.label,
         hintText: widget.hintText,
+        hintMaxLines: 1,
         errorText: widget.errorText,
         isDense: true,
         filled: true,

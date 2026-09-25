@@ -14,15 +14,17 @@ abstract interface class SearchReplaceRepository {
   Future<Either<EpubFailure, int>> replaceAll(
     SearchOptions options,
     String replacement,
-    List<LoadedEpub> epubs,
-  );
+    List<LoadedEpub> epubs, {
+    required bool preserveCase,
+  });
 
   Future<Either<EpubFailure, bool>> replaceSingle(
     SearchOptions options,
     FileSearchResult fileResult,
     MatchResult match,
-    String replacement,
-  );
+    String replacement, {
+    required bool preserveCase,
+  });
 }
 
 class SearchReplaceRepositoryImpl implements SearchReplaceRepository {
@@ -81,8 +83,9 @@ class SearchReplaceRepositoryImpl implements SearchReplaceRepository {
   Future<Either<EpubFailure, int>> replaceAll(
     SearchOptions options,
     String replacement,
-    List<LoadedEpub> epubs,
-  ) async {
+    List<LoadedEpub> epubs, {
+    required bool preserveCase,
+  }) async {
     RegExp regex;
     try {
       regex = options.buildRegExp()!;
@@ -103,15 +106,25 @@ class SearchReplaceRepositoryImpl implements SearchReplaceRepository {
         if (failure != null) return Either.left(failure);
 
         final content = readResult.getOrElse((_) => '');
-        final count = regex.allMatches(content).length;
-        if (count == 0) continue;
+        final matches = regex.allMatches(content).toList();
+        if (matches.isEmpty) continue;
 
-        final modified = content.replaceAll(regex, replacement);
-        final writeResult = await _epubRepo.writeTextFile(epub.path, item.archivePath, modified);
+        final buf = StringBuffer();
+        var cursor = 0;
+        for (final m in matches) {
+          buf.write(content.substring(cursor, m.start));
+          var replaced = _expandReplacement(replacement, m);
+          if (preserveCase) replaced = _applyPreserveCase(m.group(0) ?? '', replaced);
+          buf.write(replaced);
+          cursor = m.end;
+        }
+        buf.write(content.substring(cursor));
+
+        final writeResult = await _epubRepo.writeTextFile(epub.path, item.archivePath, buf.toString());
         final writeFailure = writeResult.mapOrNull(left: (l) => l.value);
         if (writeFailure != null) return Either.left(writeFailure);
 
-        totalReplaced += count;
+        totalReplaced += matches.length;
       }
     }
 
@@ -123,8 +136,9 @@ class SearchReplaceRepositoryImpl implements SearchReplaceRepository {
     SearchOptions options,
     FileSearchResult fileResult,
     MatchResult match,
-    String replacement,
-  ) async {
+    String replacement, {
+    required bool preserveCase,
+  }) async {
     RegExp regex;
     try {
       regex = options.buildRegExp()!;
@@ -150,11 +164,10 @@ class SearchReplaceRepositoryImpl implements SearchReplaceRepository {
     }
     if (target == null) return const Either.right(false);
 
-    final modified = content.replaceRange(
-      target.start,
-      target.end,
-      _expandReplacement(replacement, target),
-    );
+    var expanded = _expandReplacement(replacement, target);
+    if (preserveCase) expanded = _applyPreserveCase(target.group(0) ?? '', expanded);
+
+    final modified = content.replaceRange(target.start, target.end, expanded);
     final writeResult = await _epubRepo.writeTextFile(
       fileResult.epubPath,
       fileResult.file.archivePath,
@@ -239,5 +252,25 @@ class SearchReplaceRepositoryImpl implements SearchReplaceRepository {
       }
     }
     return buf.toString();
+  }
+
+  // Adapta el casing del reemplazo al del texto encontrado: FOO->FOO, foo->foo, Foo->Foo.
+  // Cualquier otro casing (mixto) deja el reemplazo tal cual se escribió.
+  String _applyPreserveCase(String original, String replacement) {
+    if (original.isEmpty || replacement.isEmpty) return replacement;
+    if (!original.contains(RegExp(r'[a-zA-Z]'))) return replacement;
+
+    final upper = original.toUpperCase();
+    final lower = original.toLowerCase();
+    if (original == upper && original != lower) return replacement.toUpperCase();
+    if (original == lower && original != upper) return replacement.toLowerCase();
+
+    final firstIsUpper = original[0] != original[0].toLowerCase();
+    final restIsLower = original.substring(1) == original.substring(1).toLowerCase();
+    if (firstIsUpper && restIsLower) {
+      return replacement[0].toUpperCase() + replacement.substring(1).toLowerCase();
+    }
+
+    return replacement;
   }
 }

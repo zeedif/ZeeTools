@@ -9,18 +9,21 @@ class AppSize {
 }
 
 class AppPadding {
+  static const tiny = 2.0;
   static const small = 4.0;
   static const medium = 8.0;
   static const large = 16.0;
 }
 
 class AppSpacing {
+  static const tiny = 2.0;
   static const small = 4.0;
   static const medium = 8.0;
   static const large = 16.0;
 }
 
 class AppRadius {
+  static const tiny = 2.0;
   static const small = 4.0;
   static const medium = 8.0;
   static const large = 16.0;

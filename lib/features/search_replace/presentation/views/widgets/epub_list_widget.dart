@@ -1,17 +1,24 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 
-import '../../../../../common/epub/models/loaded_epub.dart';
+import '/common/epub/models/loaded_epub.dart';
+import '/common/theme/app_dimensions.dart';
 import '../../../domain/file_selection_profile.dart';
 import '../../cubit/search_replace_cubit.dart';
+import 'profile_pills_row.dart';
 
 class EpubListWidget extends StatelessWidget {
   const EpubListWidget({
     super.key,
     required this.epubs,
+    required this.pillOrder,
+    required this.sortAscending,
     required this.cubit,
   });
 
   final List<LoadedEpub> epubs;
+  final List<FileSelectionProfile> pillOrder;
+  final bool sortAscending;
   final SearchReplaceCubit cubit;
 
   @override
@@ -22,8 +29,12 @@ class EpubListWidget extends StatelessWidget {
     // Resumen global de archivos activos.
     final totalActive = epubs.fold(0, (s, e) => s + e.activeFiles.length);
     final totalFiles = epubs.fold(0, (s, e) => s + e.totalFileCount);
+    int byName((int, LoadedEpub) a, (int, LoadedEpub) b) =>
+        sortAscending ? a.$2.displayName.compareTo(b.$2.displayName) : b.$2.displayName.compareTo(a.$2.displayName);
+    final sortedEpubs = [...epubs.indexed]..sort(byName);
 
     return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         // ── Cabecera con perfiles globales ────────────────────────────────
         Container(
@@ -35,44 +46,31 @@ class EpubListWidget extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                epubs.isPureImplicit ? 'EPUBs (${epubs.length}) · $totalFiles archivos' : 'EPUBs (${epubs.length}) · $totalActive/$totalFiles activos',
-                style: tt.labelSmall?.copyWith(color: cs.onSurfaceVariant),
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      epubs.isPureImplicit
+                          ? 'EPUBs (${epubs.length}) · $totalFiles archivos'
+                          : 'EPUBs (${epubs.length}) · $totalActive/$totalFiles activos',
+                      style: tt.labelSmall?.copyWith(color: cs.onSurfaceVariant),
+                    ),
+                  ),
+                  Tooltip(
+                    message: sortAscending ? 'Orden alfabético ascendente' : 'Orden alfabético descendente',
+                    child: InkWell(
+                      borderRadius: BorderRadius.circular(AppRadius.small),
+                      onTap: cubit.toggleSortAscending,
+                      child: Padding(
+                        padding: const EdgeInsets.all(AppPadding.small),
+                        child: Icon(sortAscending ? Icons.arrow_upward : Icons.arrow_downward, size: 16, color: cs.onSurfaceVariant),
+                      ),
+                    ),
+                  ),
+                ],
               ),
               const SizedBox(height: 6),
-              SingleChildScrollView(
-                scrollDirection: Axis.horizontal,
-                child: Row(
-                  children: FileSelectionProfile.values.map((p) {
-                    final active = _isGlobalActive(p);
-                    return Padding(
-                      padding: const EdgeInsets.only(right: 4),
-                      child: InkWell(
-                        borderRadius: BorderRadius.circular(12),
-                        onTap: () => cubit.applySelectionProfile(p),
-                        child: AnimatedContainer(
-                          duration: const Duration(milliseconds: 120),
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                          decoration: BoxDecoration(
-                            color: active ? cs.primaryContainer : Colors.transparent,
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(
-                              color: active ? cs.primary : cs.outlineVariant,
-                            ),
-                          ),
-                          child: Text(
-                            p.label,
-                            style: tt.labelSmall?.copyWith(
-                              color: active ? cs.onPrimaryContainer : cs.onSurfaceVariant,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        ),
-                      ),
-                    );
-                  }).toList(),
-                ),
-              ),
+              ProfilePillsRow(order: pillOrder, isActive: _isGlobalActive, onTap: cubit.applySelectionProfile, onReorder: cubit.reorderPills),
             ],
           ),
         ),
@@ -80,10 +78,10 @@ class EpubListWidget extends StatelessWidget {
         // ── Tiles de EPUBs ────────────────────────────────────────────────
         Expanded(
           child: ListView.builder(
-            itemCount: epubs.length,
+            itemCount: sortedEpubs.length,
             itemBuilder: (ctx, i) => _EpubTile(
-              epub: epubs[i],
-              index: i,
+              epub: sortedEpubs[i].$2,
+              index: sortedEpubs[i].$1,
               cubit: cubit,
             ),
           ),
@@ -142,16 +140,29 @@ class _EpubTile extends StatelessWidget {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(
-                          epub.displayName,
-                          style: tt.bodySmall?.copyWith(fontWeight: FontWeight.w600),
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
+                        Tooltip(
+                          message: epub.displayName,
+                          waitDuration: const Duration(milliseconds: 400),
+                          child: Text(
+                            epub.displayName,
+                            style: tt.bodySmall?.copyWith(fontWeight: FontWeight.w600),
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                          ),
                         ),
                         const SizedBox(height: 2),
-                        Text(
-                          countText,
-                          style: tt.labelSmall?.copyWith(color: countColor),
+                        Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            SvgPicture.asset(
+                              'assets/icons/epub.svg',
+                              width: 12,
+                              height: 12,
+                              colorFilter: ColorFilter.mode(countColor, BlendMode.srcIn),
+                            ),
+                            const SizedBox(width: 4),
+                            Text(countText, style: tt.labelSmall?.copyWith(color: countColor)),
+                          ],
                         ),
                       ],
                     ),

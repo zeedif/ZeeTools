@@ -25,7 +25,7 @@ class DashboardView extends StatelessWidget {
                 children: [
                   Icon(Icons.find_replace_rounded, size: 36),
                   SizedBox(height: 8),
-                  Text('Búsqueda y Reemplazo'),
+                  Text('Búsqueda y Reemplazo', textAlign: TextAlign.center),
                 ],
               ),
             ),

@@ -3,10 +3,15 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '/inject_dependencies.dart';
+import '/common/epub/models/epub_manifest_item.dart';
 import '/common/epub/models/epub_source.dart';
 import '/common/epub/models/loaded_epub.dart';
+import '/common/widgets/resizable_split_panel.dart';
+import '/common/widgets/selection_pill.dart';
 import '/common/widgets/speed_dial.dart';
 import '../cubit/search_replace_cubit.dart';
+import '../../domain/file_selection_profile.dart';
+import '../../domain/match_result.dart';
 import 'widgets/epub_list_widget.dart';
 import 'widgets/file_selector_widget.dart';
 import 'widgets/match_list_widget.dart';
@@ -107,7 +112,7 @@ class _SearchReplaceContentState extends State<_SearchReplaceContent> {
       builder: (context, state) => Scaffold(
         appBar: AppBar(
           title: const Text('Búsqueda y Reemplazo'),
-          actions: [_AppBarActions(state: state)],
+          actions: const [_AppBarActions()],
         ),
         body:
             state.mapOrNull(
@@ -115,7 +120,7 @@ class _SearchReplaceContentState extends State<_SearchReplaceContent> {
               loading: (s) => _LoadingPane(message: s.message),
               failure: (s) => _FailurePane(message: s.message),
             ) ??
-            _ReadyPane(state: state),
+            const _ReadyPane(),
       ),
     );
   }
@@ -152,68 +157,73 @@ class _SearchReplaceContentState extends State<_SearchReplaceContent> {
 
 // ── AppBar ───────────────────────────────────────────────────────────────────
 
+typedef _AppBarData = ({bool isProcessing, bool isMultiView, LoadedEpub? singleEpub, int? epubIndex});
+
 class _AppBarActions extends StatelessWidget {
-  const _AppBarActions({required this.state});
-  final SearchReplaceState state;
+  const _AppBarActions();
 
   @override
   Widget build(BuildContext context) {
-    return state.mapOrNull(
-          ready: (s) {
-            final cubit = context.read<SearchReplaceCubit>();
-            final isMultiView = s.epubs.length > 1 && s.focusedEpubIndex == null;
-            final epubIndex = s.focusedEpubIndex ?? (s.epubs.length == 1 ? 0 : null);
-            final singleEpub = epubIndex != null ? s.epubs[epubIndex] : null;
+    final cubit = context.read<SearchReplaceCubit>();
+    return BlocSelector<SearchReplaceCubit, SearchReplaceState, _AppBarData?>(
+      selector: (state) => state.mapOrNull(
+        ready: (s) => (
+          isProcessing: s.isProcessing,
+          isMultiView: s.epubs.length > 1 && s.focusedEpubIndex == null,
+          singleEpub: s.focusedEpubIndex != null ? s.epubs[s.focusedEpubIndex!] : (s.epubs.length == 1 ? s.epubs.first : null),
+          epubIndex: s.focusedEpubIndex ?? (s.epubs.length == 1 ? 0 : null),
+        ),
+      ),
+      builder: (context, data) {
+        if (data == null) return const SizedBox.shrink();
+        final singleEpub = data.singleEpub;
 
-            return Row(
-              children: [
-                if (s.isProcessing)
-                  const Padding(
-                    padding: EdgeInsets.only(right: 12),
-                    child: SizedBox(
-                      width: 16,
-                      height: 16,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    ),
-                  ),
-                if (isMultiView)
-                  IconButton(
-                    icon: const Icon(Icons.save_outlined),
-                    tooltip: 'Guardar todos',
-                    onPressed: s.isProcessing ? null : () => cubit.save(),
-                  )
-                else if (singleEpub != null) ...[
-                  IconButton(
-                    icon: const Icon(Icons.save_outlined),
-                    tooltip: 'Guardar',
-                    onPressed: s.isProcessing ? null : () => cubit.save(epubIndex: epubIndex),
-                  ),
-                  IconButton(
-                    icon: const Icon(Icons.save_as_outlined),
-                    tooltip: 'Guardar como…',
-                    onPressed: s.isProcessing
-                        ? null
-                        : () async {
-                            final bytes = await cubit.encodeForExport(singleEpub.path);
-                            if (bytes == null || !context.mounted) return;
-                            final uri = await FilePicker.saveFile(
-                              dialogTitle: 'Guardar EPUB como',
-                              fileName: singleEpub.displayName,
-                              bytes: bytes,
-                              windowsOptions: const WindowsOptions(lockParentWindow: true),
-                              linuxOptions: const LinuxOptions(lockParentWindow: true),
-                            );
-                            if (uri != null && context.mounted) {
-                              cubit.markSaved();
-                            }
-                          },
-                  ),
-                ],
-              ],
-            );
-          },
-        ) ??
-        const SizedBox.shrink();
+        return Row(
+          children: [
+            if (data.isProcessing)
+              const Padding(
+                padding: EdgeInsets.only(right: 12),
+                child: SizedBox(
+                  width: 16,
+                  height: 16,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                ),
+              ),
+            if (data.isMultiView)
+              IconButton(
+                icon: const Icon(Icons.save_outlined),
+                tooltip: 'Guardar todos',
+                onPressed: data.isProcessing ? null : () => cubit.save(),
+              )
+            else if (singleEpub != null) ...[
+              IconButton(
+                icon: const Icon(Icons.save_outlined),
+                tooltip: 'Guardar',
+                onPressed: data.isProcessing ? null : () => cubit.save(epubIndex: data.epubIndex),
+              ),
+              IconButton(
+                icon: const Icon(Icons.save_as_outlined),
+                tooltip: 'Guardar como…',
+                onPressed: data.isProcessing
+                    ? null
+                    : () async {
+                        final bytes = await cubit.exportEpub(singleEpub);
+                        if (bytes == null || cubit.isClosed) return;
+                        final uri = await FilePicker.saveFile(
+                          dialogTitle: 'Guardar EPUB como',
+                          fileName: singleEpub.displayName,
+                          bytes: bytes,
+                          windowsOptions: const WindowsOptions(lockParentWindow: true),
+                          linuxOptions: const LinuxOptions(lockParentWindow: true),
+                        );
+                        if (uri != null && !cubit.isClosed) cubit.markSaved();
+                      },
+              ),
+            ],
+          ],
+        );
+      },
+    );
   }
 }
 
@@ -227,7 +237,7 @@ class _LoadingPane extends StatelessWidget {
   Widget build(BuildContext context) => Center(
     child: Column(
       mainAxisSize: MainAxisSize.min,
-      children: [const CircularProgressIndicator(), const SizedBox(height: 16), Text(message)],
+      children: [const CircularProgressIndicator(), const SizedBox(height: 16), Text(message, textAlign: TextAlign.center)],
     ),
   );
 }
@@ -284,7 +294,7 @@ class _IdlePaneState extends State<_IdlePane> {
         children: [
           Icon(Icons.menu_book_outlined, size: 64, color: cs.outline),
           const SizedBox(height: 16),
-          const Text('Ningún EPUB cargado'),
+          const Text('Ningún EPUB cargado', textAlign: TextAlign.center),
           const SizedBox(height: 24),
           Wrap(
             spacing: 12,
@@ -343,265 +353,322 @@ class _IdlePaneState extends State<_IdlePane> {
 }
 
 // ── Router de vistas ─────────────────────────────────────────────────────────
+//
+// A partir de aquí, cada widget lee del cubit lo que necesita mediante su
+// propio BlocSelector en vez de recibir el SearchReplaceState completo por
+// constructor: así cada uno se reconstruye solo cuando cambia el fragmento de
+// estado que realmente usa, no cada vez que cambia cualquier otro campo
+// (p. ej. teclear en el buscador ya no reconstruye el panel de archivos).
+
+typedef _ReadyRouting = ({int? focusedEpubIndex, int epubsLength});
 
 class _ReadyPane extends StatelessWidget {
-  const _ReadyPane({required this.state});
-  final SearchReplaceState state;
+  const _ReadyPane();
 
   @override
   Widget build(BuildContext context) {
-    final cubit = context.read<SearchReplaceCubit>();
-    return state.mapOrNull(
-          ready: (s) {
-            if (s.focusedEpubIndex != null) {
-              return _SingleEpubView(
-                epub: s.epubs[s.focusedEpubIndex!],
-                epubIndex: s.focusedEpubIndex!,
-                state: state,
-                cubit: cubit,
-                showBack: true,
-              );
-            }
-            if (s.epubs.length == 1) {
-              return _SingleEpubView(
-                epub: s.epubs.first,
-                epubIndex: 0,
-                state: state,
-                cubit: cubit,
-                showBack: false,
-              );
-            }
-            return _MultiEpubView(state: state, cubit: cubit);
-          },
-        ) ??
-        const SizedBox.shrink();
+    return BlocSelector<SearchReplaceCubit, SearchReplaceState, _ReadyRouting?>(
+      selector: (state) => state.mapOrNull(ready: (s) => (focusedEpubIndex: s.focusedEpubIndex, epubsLength: s.epubs.length)),
+      builder: (context, routing) {
+        if (routing == null) return const SizedBox.shrink();
+        if (routing.focusedEpubIndex != null) {
+          return _SingleEpubView(epubIndex: routing.focusedEpubIndex!, showBack: true);
+        }
+        if (routing.epubsLength == 1) {
+          return const _SingleEpubView(epubIndex: 0, showBack: false);
+        }
+        return const _MultiEpubView();
+      },
+    );
   }
 }
 
-// ── Vista individual ──────────────────────────────────────────────────────────
-
-class _SingleEpubView extends StatelessWidget {
-  const _SingleEpubView({
-    required this.epub,
-    required this.epubIndex,
-    required this.state,
-    required this.cubit,
-    required this.showBack,
-  });
-
-  final LoadedEpub epub;
-  final int epubIndex;
-  final SearchReplaceState state;
-  final SearchReplaceCubit cubit;
-  final bool showBack;
-
-  @override
-  Widget build(BuildContext context) {
-    return state.mapOrNull(
-          ready: (s) => Column(
-            children: [
-              if (showBack)
-                Container(
-                  width: double.infinity,
-                  color: Theme.of(context).colorScheme.surfaceContainerLow,
-                  child: TextButton.icon(
-                    icon: const Icon(Icons.arrow_back, size: 16),
-                    label: Text('Volver · ${s.epubs.length} EPUBs'),
-                    style: TextButton.styleFrom(alignment: Alignment.centerLeft),
-                    onPressed: cubit.unfocusEpub,
-                  ),
-                ),
-              Expanded(
-                child: Row(
-                  children: [
-                    SizedBox(
-                      width: 220,
-                      child: FileSelectorWidget(
-                        files: epub.textFiles,
-                        selectedIds: epub.selectedFileIds, // List<String>? — nullable
-                        onSelectionChanged: (ids) => cubit.changeEpubFileSelection(epubIndex, ids),
-                      ),
-                    ),
-                    const VerticalDivider(width: 1),
-                    Expanded(
-                      child: _SearchPanel(state: state, cubit: cubit, alwaysShowEpubHeader: false),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ) ??
-        const SizedBox.shrink();
-  }
-}
-
-// ── Vista multi ───────────────────────────────────────────────────────────────
-
-class _MultiEpubView extends StatelessWidget {
-  const _MultiEpubView({required this.state, required this.cubit});
-  final SearchReplaceState state;
-  final SearchReplaceCubit cubit;
-
-  @override
-  Widget build(BuildContext context) {
-    return state.mapOrNull(
-          ready: (s) => Row(
-            children: [
-              SizedBox(
-                width: 220,
-                child: EpubListWidget(epubs: s.epubs, cubit: cubit),
-              ),
-              const VerticalDivider(width: 1),
-              Expanded(
-                child: _SearchPanel(state: state, cubit: cubit, alwaysShowEpubHeader: true),
-              ),
-            ],
-          ),
-        ) ??
-        const SizedBox.shrink();
-  }
-}
-
-// ── Panel de búsqueda (compartido) ────────────────────────────────────────────
-
-class _SearchPanel extends StatelessWidget {
-  const _SearchPanel({
-    required this.state,
-    required this.cubit,
-    required this.alwaysShowEpubHeader,
-  });
-  final SearchReplaceState state;
-  final SearchReplaceCubit cubit;
-  final bool alwaysShowEpubHeader;
-
-  @override
-  Widget build(BuildContext context) {
-    return state.mapOrNull(
-          ready: (s) => Column(
-            children: [
-              Padding(
-                padding: const EdgeInsets.all(16),
-                child: _SearchForm(state: state, cubit: cubit),
-              ),
-              const Divider(height: 1),
-              Expanded(
-                child: s.results.isEmpty && !s.isProcessing
-                    ? Center(
-                        child: Text(
-                          s.searchPattern.isEmpty ? 'Introduce un patrón de búsqueda' : 'Sin resultados',
-                          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                            color: Theme.of(context).colorScheme.outline,
-                          ),
-                        ),
-                      )
-                    : MatchListWidget(
-                        results: s.results,
-                        totalMatches: s.totalMatches,
-                        replacePattern: s.replacePattern,
-                        cubit: cubit,
-                        alwaysShowEpubHeader: alwaysShowEpubHeader,
-                      ),
-              ),
-            ],
-          ),
-        ) ??
-        const SizedBox.shrink();
-  }
-}
-
-class _SearchForm extends StatelessWidget {
-  const _SearchForm({required this.state, required this.cubit});
-  final SearchReplaceState state;
-  final SearchReplaceCubit cubit;
-
-  @override
-  Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    return state.mapOrNull(
-          ready: (s) => Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              RegexTextField(
-                label: 'Buscar',
-                isRegexMode: s.isRegexMode,
-                errorText: s.patternError,
-                initialValue: s.searchPattern,
-                hintText: s.isRegexMode ? r'(\w+)\s+\1' : 'Texto a buscar…',
-                onChanged: cubit.changePattern,
-                suffixIcons: [
-                  _ToggleChip(label: '.*', active: s.isRegexMode, tooltip: 'Modo Regex', onTap: cubit.toggleRegexMode),
-                  _ToggleChip(label: 'Aa', active: s.isCaseSensitive, tooltip: 'Distinguir mayúsculas', onTap: cubit.toggleCaseSensitivity),
-                ],
-              ),
-              const SizedBox(height: 10),
-              RegexTextField(
-                label: 'Reemplazar',
-                isRegexMode: false,
-                initialValue: s.replacePattern,
-                hintText: r'Usa $1, ${nombre} para grupos; $$ para $ literal',
-                onChanged: cubit.changeReplacement,
-              ),
-              const SizedBox(height: 12),
-              Row(
-                children: [
-                  FilledButton.icon(
-                    icon: const Icon(Icons.search, size: 18),
-                    label: const Text('Buscar'),
-                    onPressed: s.patternError != null || s.searchPattern.isEmpty || s.isProcessing ? null : cubit.executeSearch,
-                  ),
-                  const SizedBox(width: 8),
-                  OutlinedButton.icon(
-                    icon: const Icon(Icons.find_replace_rounded, size: 18),
-                    label: const Text('Reemplazar todo'),
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: cs.error,
-                      side: BorderSide(color: cs.error.withAlpha(100)),
-                    ),
-                    onPressed: s.patternError != null || s.searchPattern.isEmpty || s.isProcessing || s.results.isEmpty ? null : cubit.replaceAll,
-                  ),
-                ],
-              ),
-            ],
-          ),
-        ) ??
-        const SizedBox.shrink();
-  }
-}
-
-class _ToggleChip extends StatelessWidget {
-  const _ToggleChip({required this.label, required this.active, required this.tooltip, required this.onTap});
+// Material+InkWell rectangular a todo el ancho para que el ripple cubra la barra completa.
+class _BackBar extends StatelessWidget {
+  const _BackBar({required this.label, required this.onTap});
   final String label;
-  final bool active;
-  final String tooltip;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
+    return Material(
+      color: cs.surfaceContainerLow,
+      child: SizedBox(
+        width: double.infinity,
+        child: InkWell(
+          onTap: onTap,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.arrow_back, size: 16, color: cs.primary),
+                const SizedBox(width: 8),
+                Text(
+                  label,
+                  style: TextStyle(color: cs.primary, fontWeight: FontWeight.w600),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ── Vista individual ──────────────────────────────────────────────────────────
+
+typedef _FileSelectorData = ({
+  List<EpubManifestItem> files,
+  List<String>? selectedIds,
+  List<FileSelectionProfile> pillOrder,
+  bool groupByPillOrder,
+  bool sortAscending,
+  int epubsLength,
+});
+
+class _SingleEpubView extends StatelessWidget {
+  const _SingleEpubView({required this.epubIndex, required this.showBack});
+
+  final int epubIndex;
+  final bool showBack;
+
+  @override
+  Widget build(BuildContext context) {
+    final cubit = context.read<SearchReplaceCubit>();
+    return BlocSelector<SearchReplaceCubit, SearchReplaceState, _FileSelectorData?>(
+      selector: (state) => state.mapOrNull(
+        ready: (s) => (
+          files: s.epubs[epubIndex].textFiles,
+          selectedIds: s.epubs[epubIndex].selectedFileIds,
+          pillOrder: s.pillOrder,
+          groupByPillOrder: s.groupFilesByPillOrder,
+          sortAscending: s.sortAscending,
+          epubsLength: s.epubs.length,
+        ),
+      ),
+      builder: (context, data) {
+        if (data == null) return const SizedBox.shrink();
+        return Column(
+          children: [
+            if (showBack) _BackBar(label: 'Volver · ${data.epubsLength} EPUBs', onTap: cubit.unfocusEpub),
+            Expanded(
+              child: ResizableSplitPanel(
+                maxWidth: 320,
+                panel: FileSelectorWidget(
+                  files: data.files,
+                  selectedIds: data.selectedIds, // List<String>? — nullable
+                  onSelectionChanged: (ids) => cubit.changeEpubFileSelection(epubIndex, ids),
+                  pillOrder: data.pillOrder,
+                  onReorderPills: cubit.reorderPills,
+                  groupByPillOrder: data.groupByPillOrder,
+                  onToggleGroupByPillOrder: cubit.toggleGroupFilesByPillOrder,
+                  sortAscending: data.sortAscending,
+                  onToggleSortAscending: cubit.toggleSortAscending,
+                ),
+                body: const _SearchPanel(alwaysShowEpubHeader: false),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+}
+
+// ── Vista multi ───────────────────────────────────────────────────────────────
+
+typedef _MultiEpubData = ({List<LoadedEpub> epubs, List<FileSelectionProfile> pillOrder, bool sortAscending});
+
+class _MultiEpubView extends StatelessWidget {
+  const _MultiEpubView();
+
+  @override
+  Widget build(BuildContext context) {
+    final cubit = context.read<SearchReplaceCubit>();
+    return BlocSelector<SearchReplaceCubit, SearchReplaceState, _MultiEpubData?>(
+      selector: (state) => state.mapOrNull(ready: (s) => (epubs: s.epubs, pillOrder: s.pillOrder, sortAscending: s.sortAscending)),
+      builder: (context, data) {
+        if (data == null) return const SizedBox.shrink();
+        return ResizableSplitPanel(
+          maxWidth: 320,
+          panel: EpubListWidget(epubs: data.epubs, pillOrder: data.pillOrder, sortAscending: data.sortAscending, cubit: cubit),
+          body: const _SearchPanel(alwaysShowEpubHeader: true),
+        );
+      },
+    );
+  }
+}
+
+// ── Panel de búsqueda (compartido) ────────────────────────────────────────────
+
+typedef _ResultsData = ({
+  List<EpubSearchResult> results,
+  int totalMatches,
+  String replacePattern,
+  bool isProcessing,
+  String searchPattern,
+});
+
+class _SearchPanel extends StatelessWidget {
+  const _SearchPanel({required this.alwaysShowEpubHeader});
+  final bool alwaysShowEpubHeader;
+
+  @override
+  Widget build(BuildContext context) {
+    final cubit = context.read<SearchReplaceCubit>();
+    return Column(
+      children: [
+        const Padding(padding: EdgeInsets.all(16), child: _SearchForm()),
+        const Divider(height: 1),
+        Expanded(
+          child: BlocSelector<SearchReplaceCubit, SearchReplaceState, _ResultsData?>(
+            selector: (state) => state.mapOrNull(
+              ready: (s) => (
+                results: s.results,
+                totalMatches: s.totalMatches,
+                replacePattern: s.replacePattern,
+                isProcessing: s.isProcessing,
+                searchPattern: s.searchPattern,
+              ),
+            ),
+            builder: (context, data) {
+              if (data == null) return const SizedBox.shrink();
+              if (data.results.isEmpty && !data.isProcessing) {
+                return Center(
+                  child: Text(
+                    data.searchPattern.isEmpty ? 'Introduce un patrón de búsqueda' : 'Sin resultados',
+                    textAlign: TextAlign.center,
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: Theme.of(context).colorScheme.outline),
+                  ),
+                );
+              }
+              return MatchListWidget(
+                results: data.results,
+                totalMatches: data.totalMatches,
+                replacePattern: data.replacePattern,
+                cubit: cubit,
+                alwaysShowEpubHeader: alwaysShowEpubHeader,
+              );
+            },
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+typedef _SearchFormData = ({
+  String searchPattern,
+  String replacePattern,
+  bool isRegexMode,
+  bool isCaseSensitive,
+  bool preserveCase,
+  String? patternError,
+  bool isProcessing,
+  bool resultsEmpty,
+});
+
+class _SearchForm extends StatelessWidget {
+  const _SearchForm();
+
+  @override
+  Widget build(BuildContext context) {
+    final cubit = context.read<SearchReplaceCubit>();
+    final cs = Theme.of(context).colorScheme;
+    return BlocSelector<SearchReplaceCubit, SearchReplaceState, _SearchFormData?>(
+      selector: (state) => state.mapOrNull(
+        ready: (s) => (
+          searchPattern: s.searchPattern,
+          replacePattern: s.replacePattern,
+          isRegexMode: s.isRegexMode,
+          isCaseSensitive: s.isCaseSensitive,
+          preserveCase: s.preserveCase,
+          patternError: s.patternError,
+          isProcessing: s.isProcessing,
+          resultsEmpty: s.results.isEmpty,
+        ),
+      ),
+      builder: (context, s) {
+        if (s == null) return const SizedBox.shrink();
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            RegexTextField(
+              label: 'Buscar',
+              isRegexMode: s.isRegexMode,
+              errorText: s.patternError,
+              initialValue: s.searchPattern,
+              hintText: s.isRegexMode ? r'(\w+)\s+\1' : 'Texto a buscar…',
+              onChanged: cubit.changePattern,
+              suffixIcons: [
+                SelectionPill(dense: true, label: '.*', selected: s.isRegexMode, tooltip: 'Modo Regex', onTap: cubit.toggleRegexMode),
+                SelectionPill(
+                  dense: true,
+                  label: 'Aa',
+                  selected: s.isCaseSensitive,
+                  tooltip: 'Distinguir mayúsculas',
+                  onTap: cubit.toggleCaseSensitivity,
+                ),
+                _SuffixIconButton(
+                  icon: Icons.search,
+                  tooltip: 'Buscar',
+                  onTap: s.patternError != null || s.searchPattern.isEmpty || s.isProcessing ? null : cubit.executeSearch,
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            RegexTextField(
+              label: 'Reemplazar',
+              isRegexMode: false,
+              initialValue: s.replacePattern,
+              hintText: r'Usa $1, ${nombre} para grupos; $$ para $ literal',
+              onChanged: cubit.changeReplacement,
+              suffixIcons: [
+                SelectionPill(
+                  dense: true,
+                  label: 'Ab',
+                  selected: s.preserveCase,
+                  tooltip: 'Conservar mayúsculas/minúsculas',
+                  onTap: cubit.togglePreserveCase,
+                ),
+                _SuffixIconButton(
+                  icon: Icons.find_replace_rounded,
+                  tooltip: 'Reemplazar todo',
+                  color: cs.error,
+                  onTap: s.patternError != null || s.searchPattern.isEmpty || s.isProcessing || s.resultsEmpty ? null : cubit.replaceAll,
+                ),
+              ],
+            ),
+          ],
+        );
+      },
+    );
+  }
+}
+
+// Botón de acción para RegexTextField.suffixIcons.
+class _SuffixIconButton extends StatelessWidget {
+  const _SuffixIconButton({required this.icon, required this.tooltip, required this.onTap, this.color});
+  final IconData icon;
+  final String tooltip;
+  final VoidCallback? onTap;
+  final Color? color;
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final tint = onTap != null ? (color ?? cs.onSurfaceVariant) : cs.outlineVariant;
     return Tooltip(
       message: tooltip,
       child: InkWell(
         borderRadius: BorderRadius.circular(4),
         onTap: onTap,
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 150),
-          margin: const EdgeInsets.symmetric(horizontal: 2, vertical: 4),
-          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-          decoration: BoxDecoration(
-            color: active ? cs.primaryContainer : Colors.transparent,
-            borderRadius: BorderRadius.circular(4),
-            border: Border.all(color: active ? cs.primary : cs.outlineVariant),
-          ),
-          child: Text(
-            label,
-            style: TextStyle(
-              fontSize: 11,
-              fontWeight: FontWeight.w700,
-              fontFamily: 'monospace',
-              color: active ? cs.onPrimaryContainer : cs.onSurfaceVariant,
-            ),
-          ),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+          child: Icon(icon, size: 18, color: tint),
         ),
       ),
     );

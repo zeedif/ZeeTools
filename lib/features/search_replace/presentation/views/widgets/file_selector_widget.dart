@@ -1,7 +1,12 @@
 import 'package:flutter/material.dart';
 
-import '../../../../../common/epub/models/epub_manifest_item.dart';
+import '/common/epub/models/epub_manifest_item.dart';
+import '/common/epub/utils/epub_file_kind.dart';
+import '/common/theme/app_dimensions.dart';
+import '/common/widgets/file_kind_icon.dart';
+import '/common/widgets/selection_pill.dart';
 import '../../../domain/file_selection_profile.dart';
+import 'profile_pills_row.dart';
 
 class FileSelectorWidget extends StatelessWidget {
   const FileSelectorWidget({
@@ -9,6 +14,12 @@ class FileSelectorWidget extends StatelessWidget {
     required this.files,
     required this.selectedIds,
     required this.onSelectionChanged,
+    required this.pillOrder,
+    required this.onReorderPills,
+    required this.groupByPillOrder,
+    required this.onToggleGroupByPillOrder,
+    required this.sortAscending,
+    required this.onToggleSortAscending,
   });
 
   final List<EpubManifestItem> files;
@@ -18,6 +29,12 @@ class FileSelectorWidget extends StatelessWidget {
   final List<String>? selectedIds;
   // Callback unificado: null = resetear a implícito, [] = ninguno, [...] = subset.
   final ValueChanged<List<String>?> onSelectionChanged;
+  final List<FileSelectionProfile> pillOrder;
+  final ValueChanged<List<FileSelectionProfile>> onReorderPills;
+  final bool groupByPillOrder;
+  final VoidCallback onToggleGroupByPillOrder;
+  final bool sortAscending;
+  final VoidCallback onToggleSortAscending;
 
   bool get _isImplicit => selectedIds == null;
 
@@ -32,8 +49,10 @@ class FileSelectorWidget extends StatelessWidget {
       [] => 'Sin archivos activos',
       final ids => '${ids.length}/${files.length} archivos',
     };
+    final sortedFiles = files.sortedFor(pillOrder, groupByPillOrder: groupByPillOrder, ascending: sortAscending);
 
     return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         // ── Cabecera ────────────────────────────────────────────────────────
         Container(
@@ -45,42 +64,32 @@ class FileSelectorWidget extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(countLabel, style: tt.labelSmall?.copyWith(color: cs.onSurfaceVariant)),
-              const SizedBox(height: 6),
-              // Fila única de perfiles: Todo · Ninguno · XHTML · CSS · OPF · JS
-              SingleChildScrollView(
-                scrollDirection: Axis.horizontal,
-                child: Row(
-                  children: FileSelectionProfile.values.map((p) {
-                    final active = _isProfileActive(p);
-                    return Padding(
-                      padding: const EdgeInsets.only(right: 4),
-                      child: InkWell(
-                        borderRadius: BorderRadius.circular(12),
-                        onTap: () => _onProfileTap(p),
-                        child: AnimatedContainer(
-                          duration: const Duration(milliseconds: 120),
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                          decoration: BoxDecoration(
-                            color: active ? cs.primaryContainer : Colors.transparent,
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(
-                              color: active ? cs.primary : cs.outlineVariant,
-                            ),
-                          ),
-                          child: Text(
-                            p.label,
-                            style: tt.labelSmall?.copyWith(
-                              color: active ? cs.onPrimaryContainer : cs.onSurfaceVariant,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        ),
+              Row(
+                children: [
+                  Expanded(child: Text(countLabel, style: tt.labelSmall?.copyWith(color: cs.onSurfaceVariant))),
+                  SelectionPill(
+                    dense: true,
+                    label: 'Agrupar',
+                    icon: groupByPillOrder ? Icons.layers : Icons.layers_outlined,
+                    selected: groupByPillOrder,
+                    tooltip: 'Agrupar archivos según el orden de los pills',
+                    onTap: onToggleGroupByPillOrder,
+                  ),
+                  Tooltip(
+                    message: sortAscending ? 'Orden alfabético ascendente' : 'Orden alfabético descendente',
+                    child: InkWell(
+                      borderRadius: BorderRadius.circular(AppRadius.small),
+                      onTap: onToggleSortAscending,
+                      child: Padding(
+                        padding: const EdgeInsets.all(AppPadding.small),
+                        child: Icon(sortAscending ? Icons.arrow_upward : Icons.arrow_downward, size: 16, color: cs.onSurfaceVariant),
                       ),
-                    );
-                  }).toList(),
-                ),
+                    ),
+                  ),
+                ],
               ),
+              const SizedBox(height: 6),
+              ProfilePillsRow(order: pillOrder, isActive: _isProfileActive, onTap: _onProfileTap, onReorder: onReorderPills),
             ],
           ),
         ),
@@ -88,18 +97,15 @@ class FileSelectorWidget extends StatelessWidget {
         // ── Lista de archivos ────────────────────────────────────────────────
         Expanded(
           child: ListView.builder(
-            itemCount: files.length,
+            itemCount: sortedFiles.length,
             itemBuilder: (context, index) {
-              final item = files[index];
+              final item = sortedFiles[index];
               // En implícito todos aparecen marcados sin guardar la lista.
               final checked = _isImplicit || (selectedIds?.contains(item.id) ?? false);
+              final fileName = item.href.split('/').last;
 
-              return CheckboxListTile(
-                dense: true,
-                contentPadding: const EdgeInsets.symmetric(horizontal: 8),
-                controlAffinity: ListTileControlAffinity.leading,
-                value: checked,
-                onChanged: (_) {
+              return InkWell(
+                onTap: () {
                   if (_isImplicit) {
                     // Desmarcar uno en modo implícito → entrar en explícito con
                     // todos los demás. Los otros EPUBs NO se ven afectados.
@@ -114,15 +120,26 @@ class FileSelectorWidget extends StatelessWidget {
                   // colapsará a null automáticamente para ahorrar memoria.
                   onSelectionChanged(next);
                 },
-                title: Text(
-                  item.href.split('/').last,
-                  style: const TextStyle(fontSize: 12),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                subtitle: Text(
-                  item.mediaType.split('/').last,
-                  style: TextStyle(fontSize: 10, color: cs.onSurfaceVariant),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                  child: Row(
+                    children: [
+                      FileKindIcon(kind: EpubFileKind.fromMediaType(item.mediaType), selected: checked),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Tooltip(
+                          message: fileName,
+                          waitDuration: const Duration(milliseconds: 400),
+                          child: Text(
+                            fileName,
+                            style: const TextStyle(fontSize: 12),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               );
             },

@@ -8,6 +8,9 @@ sealed class SearchReplaceState with _$SearchReplaceState {
 
   const factory SearchReplaceState.ready({
     required List<LoadedEpub> epubs,
+    required List<FileSelectionProfile> pillOrder,
+    @Default(false) bool groupFilesByPillOrder,
+    @Default(true) bool sortAscending,
     // null = vista de sesión (multi si >1, individual si 1)
     // set  = vista individual forzada para ese índice
     int? focusedEpubIndex,
@@ -15,6 +18,7 @@ sealed class SearchReplaceState with _$SearchReplaceState {
     @Default('') String replacePattern,
     @Default(false) bool isRegexMode,
     @Default(true) bool isCaseSensitive,
+    @Default(false) bool preserveCase,
     String? patternError,
     @Default([]) List<EpubSearchResult> results,
     @Default(0) int totalMatches,
