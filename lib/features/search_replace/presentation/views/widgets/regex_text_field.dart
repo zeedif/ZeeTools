@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import 'regex_highlight_controller.dart';
 
@@ -12,6 +13,8 @@ class RegexTextField extends StatefulWidget {
     this.hintText,
     this.errorText,
     this.suffixIcons = const [],
+    this.onSubmit,
+    this.focusNode,
   });
 
   final String label;
@@ -21,6 +24,8 @@ class RegexTextField extends StatefulWidget {
   final String? hintText;
   final String? errorText;
   final List<Widget> suffixIcons;
+  final VoidCallback? onSubmit;
+  final FocusNode? focusNode;
 
   @override
   State<RegexTextField> createState() => _RegexTextFieldState();
@@ -59,50 +64,61 @@ class _RegexTextFieldState extends State<RegexTextField> {
     final cs = Theme.of(context).colorScheme;
     final isRegex = widget.isRegexMode;
 
-    return TextField(
-      controller: _controller,
-      onChanged: widget.onChanged,
-      minLines: 1,
-      maxLines: 6,
-      style: const TextStyle(fontFamily: 'monospace', fontSize: 13),
-      decoration: InputDecoration(
-        labelText: widget.label,
-        hintText: widget.hintText,
-        hintMaxLines: 1,
-        errorText: widget.errorText,
-        isDense: true,
-        filled: true,
-        fillColor: isRegex ? cs.primaryContainer.withAlpha(40) : cs.surfaceContainerHighest,
-        enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(8),
-          borderSide: BorderSide(
-            color: isRegex ? cs.primary.withAlpha(160) : cs.outlineVariant,
+    return Focus(
+      onKeyEvent: (node, event) {
+        final isEnter = event.logicalKey == LogicalKeyboardKey.enter || event.logicalKey == LogicalKeyboardKey.numpadEnter;
+        if (event is KeyDownEvent && isEnter && HardwareKeyboard.instance.isControlPressed) {
+          widget.onSubmit?.call();
+          return KeyEventResult.handled;
+        }
+        return KeyEventResult.ignored;
+      },
+      child: TextField(
+        controller: _controller,
+        focusNode: widget.focusNode,
+        onChanged: widget.onChanged,
+        minLines: 1,
+        maxLines: 6,
+        style: const TextStyle(fontFamily: 'monospace', fontSize: 13),
+        decoration: InputDecoration(
+          labelText: widget.label,
+          hintText: widget.hintText,
+          hintMaxLines: 1,
+          errorText: widget.errorText,
+          isDense: true,
+          filled: true,
+          fillColor: isRegex ? cs.primaryContainer.withAlpha(40) : cs.surfaceContainerHighest,
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(8),
+            borderSide: BorderSide(
+              color: isRegex ? cs.primary.withAlpha(160) : cs.outlineVariant,
+            ),
           ),
-        ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(8),
-          borderSide: BorderSide(
-            color: isRegex ? cs.primary : cs.primary,
-            width: 2,
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(8),
+            borderSide: BorderSide(
+              color: isRegex ? cs.primary : cs.primary,
+              width: 2,
+            ),
           ),
-        ),
-        errorBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(8),
-          borderSide: BorderSide(color: cs.error),
-        ),
-        focusedErrorBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(8),
-          borderSide: BorderSide(color: cs.error, width: 2),
-        ),
-        suffixIcon: widget.suffixIcons.isEmpty
-            ? null
-            : Padding(
-                padding: const EdgeInsets.only(right: 4),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: widget.suffixIcons,
+          errorBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(8),
+            borderSide: BorderSide(color: cs.error),
+          ),
+          focusedErrorBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(8),
+            borderSide: BorderSide(color: cs.error, width: 2),
+          ),
+          suffixIcon: widget.suffixIcons.isEmpty
+              ? null
+              : Padding(
+                  padding: const EdgeInsets.only(right: 4),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: widget.suffixIcons,
+                  ),
                 ),
-              ),
+        ),
       ),
     );
   }

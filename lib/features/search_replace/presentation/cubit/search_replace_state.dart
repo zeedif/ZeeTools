@@ -21,12 +21,14 @@ sealed class SearchReplaceState with _$SearchReplaceState {
     @Default(false) bool isWholeWord,
     @Default(false) bool preserveCase,
     String? patternError,
+    @Default(false) bool hasSearched,
     @Default([]) List<EpubSearchResult> results,
     @Default(0) int totalMatches,
     @Default(false) bool isProcessing,
     int? lastReplacedCount,
     String? errorMessage,
     @Default(false) bool isSaved,
+    @Default(0) int focusSearchToken,
   }) = _Ready;
 
   const factory SearchReplaceState.failure(String message) = _Failure;

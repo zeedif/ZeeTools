@@ -4,7 +4,7 @@ import '../../../../../common/epub/models/epub_manifest_item.dart';
 import '../../../domain/match_result.dart';
 import '../../cubit/search_replace_cubit.dart';
 
-class MatchListWidget extends StatelessWidget {
+class MatchListWidget extends StatefulWidget {
   const MatchListWidget({
     super.key,
     required this.results,
@@ -22,28 +22,76 @@ class MatchListWidget extends StatelessWidget {
   final bool alwaysShowEpubHeader;
 
   @override
+  State<MatchListWidget> createState() => _MatchListWidgetState();
+}
+
+class _MatchListWidgetState extends State<MatchListWidget> {
+  final _collapsedEpubs = <String>{};
+  final _collapsedFiles = <String>{};
+  bool _allExpanded = true;
+
+  String _fileKey(String epubPath, String archivePath) => '$epubPath::$archivePath';
+
+  void _toggleAll() {
+    setState(() {
+      if (_allExpanded) {
+        _collapsedEpubs.addAll(widget.results.map((r) => r.epubPath));
+        _collapsedFiles.addAll([
+          for (final r in widget.results)
+            for (final fr in r.fileResults) _fileKey(r.epubPath, fr.file.archivePath),
+        ]);
+      } else {
+        _collapsedEpubs.clear();
+        _collapsedFiles.clear();
+      }
+      _allExpanded = !_allExpanded;
+    });
+  }
+
+  void _toggleEpub(String epubPath) {
+    setState(() {
+      if (!_collapsedEpubs.add(epubPath)) _collapsedEpubs.remove(epubPath);
+    });
+  }
+
+  void _toggleFile(String key) {
+    setState(() {
+      if (!_collapsedFiles.add(key)) _collapsedFiles.remove(key);
+    });
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final fileCount = results.fold(0, (s, r) => s + r.fileResults.length);
-    final epubCount = results.length;
+    final fileCount = widget.results.fold(0, (s, r) => s + r.fileResults.length);
+    final epubCount = widget.results.length;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         _SummaryBar(
-          totalMatches: totalMatches,
+          totalMatches: widget.totalMatches,
           fileCount: fileCount,
           epubCount: epubCount,
-          showEpubCount: alwaysShowEpubHeader,
+          showEpubCount: widget.alwaysShowEpubHeader,
+          allExpanded: _allExpanded,
+          onToggleAll: _toggleAll,
         ),
         Expanded(
           child: ListView.builder(
-            itemCount: results.length,
-            itemBuilder: (ctx, i) => _EpubSection(
-              result: results[i],
-              replacePattern: replacePattern,
-              cubit: cubit,
-              showEpubHeader: alwaysShowEpubHeader,
-            ),
+            itemCount: widget.results.length,
+            itemBuilder: (ctx, i) {
+              final result = widget.results[i];
+              return _EpubSection(
+                result: result,
+                replacePattern: widget.replacePattern,
+                cubit: widget.cubit,
+                showEpubHeader: widget.alwaysShowEpubHeader,
+                collapsed: _collapsedEpubs.contains(result.epubPath),
+                onToggle: () => _toggleEpub(result.epubPath),
+                isFileCollapsed: (archivePath) => _collapsedFiles.contains(_fileKey(result.epubPath, archivePath)),
+                onToggleFile: (archivePath) => _toggleFile(_fileKey(result.epubPath, archivePath)),
+              );
+            },
           ),
         ),
       ],
@@ -57,65 +105,84 @@ class _SummaryBar extends StatelessWidget {
     required this.fileCount,
     required this.epubCount,
     required this.showEpubCount,
+    required this.allExpanded,
+    required this.onToggleAll,
   });
   final int totalMatches;
   final int fileCount;
   final int epubCount;
   final bool showEpubCount;
+  final bool allExpanded;
+  final VoidCallback onToggleAll;
 
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     final epubLabel = showEpubCount && epubCount > 0 ? ' en $epubCount EPUB${epubCount == 1 ? '' : 's'}' : '';
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
       color: cs.surfaceContainerHighest,
-      child: Text(
-        '$totalMatches coincidencia${totalMatches == 1 ? '' : 's'} '
-        'en $fileCount archivo${fileCount == 1 ? '' : 's'}$epubLabel',
-        style: Theme.of(context).textTheme.labelMedium?.copyWith(color: cs.onSurfaceVariant),
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(
+              '$totalMatches coincidencia${totalMatches == 1 ? '' : 's'} '
+              'en $fileCount archivo${fileCount == 1 ? '' : 's'}$epubLabel',
+              style: Theme.of(context).textTheme.labelMedium?.copyWith(color: cs.onSurfaceVariant),
+            ),
+          ),
+          IconButton(
+            icon: Icon(allExpanded ? Icons.unfold_less : Icons.unfold_more, size: 18),
+            tooltip: allExpanded ? 'Colapsar todo' : 'Expandir todo',
+            padding: const EdgeInsets.all(4),
+            constraints: const BoxConstraints(),
+            onPressed: onToggleAll,
+          ),
+        ],
       ),
     );
   }
 }
 
-class _EpubSection extends StatefulWidget {
+class _EpubSection extends StatelessWidget {
   const _EpubSection({
     required this.result,
     required this.replacePattern,
     required this.cubit,
     required this.showEpubHeader,
+    required this.collapsed,
+    required this.onToggle,
+    required this.isFileCollapsed,
+    required this.onToggleFile,
   });
   final EpubSearchResult result;
   final String replacePattern;
   final SearchReplaceCubit cubit;
   final bool showEpubHeader;
-
-  @override
-  State<_EpubSection> createState() => _EpubSectionState();
-}
-
-class _EpubSectionState extends State<_EpubSection> {
-  bool _expanded = true;
+  final bool collapsed;
+  final VoidCallback onToggle;
+  final bool Function(String archivePath) isFileCollapsed;
+  final void Function(String archivePath) onToggleFile;
 
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     final tt = Theme.of(context).textTheme;
+    final expanded = !collapsed;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        if (widget.showEpubHeader)
+        if (showEpubHeader)
           InkWell(
-            onTap: () => setState(() => _expanded = !_expanded),
+            onTap: onToggle,
             child: Container(
               color: cs.surfaceContainerLow,
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
               child: Row(
                 children: [
                   Icon(
-                    _expanded ? Icons.keyboard_arrow_down : Icons.keyboard_arrow_right,
+                    expanded ? Icons.keyboard_arrow_down : Icons.keyboard_arrow_right,
                     size: 16,
                     color: cs.primary,
                   ),
@@ -124,7 +191,7 @@ class _EpubSectionState extends State<_EpubSection> {
                   const SizedBox(width: 6),
                   Expanded(
                     child: Text(
-                      widget.result.displayName,
+                      result.displayName,
                       style: tt.labelMedium?.copyWith(
                         fontWeight: FontWeight.w700,
                         color: cs.primary,
@@ -139,7 +206,7 @@ class _EpubSectionState extends State<_EpubSection> {
                       borderRadius: BorderRadius.circular(10),
                     ),
                     child: Text(
-                      '${widget.result.totalMatches}',
+                      '${result.totalMatches}',
                       style: tt.labelSmall?.copyWith(
                         color: cs.onPrimaryContainer,
                         fontWeight: FontWeight.w700,
@@ -150,12 +217,14 @@ class _EpubSectionState extends State<_EpubSection> {
               ),
             ),
           ),
-        if (!widget.showEpubHeader || _expanded)
-          ...widget.result.fileResults.map(
+        if (!showEpubHeader || expanded)
+          ...result.fileResults.map(
             (fr) => _FileSection(
               fileResult: fr,
-              replacePattern: widget.replacePattern,
-              cubit: widget.cubit,
+              replacePattern: replacePattern,
+              cubit: cubit,
+              collapsed: isFileCollapsed(fr.file.archivePath),
+              onToggle: () => onToggleFile(fr.file.archivePath),
             ),
           ),
         Divider(height: 1, color: cs.outlineVariant.withAlpha(60)),
@@ -164,40 +233,38 @@ class _EpubSectionState extends State<_EpubSection> {
   }
 }
 
-class _FileSection extends StatefulWidget {
+class _FileSection extends StatelessWidget {
   const _FileSection({
     required this.fileResult,
     required this.replacePattern,
     required this.cubit,
+    required this.collapsed,
+    required this.onToggle,
   });
   final FileSearchResult fileResult;
   final String replacePattern;
   final SearchReplaceCubit cubit;
-
-  @override
-  State<_FileSection> createState() => _FileSectionState();
-}
-
-class _FileSectionState extends State<_FileSection> {
-  bool _expanded = true;
+  final bool collapsed;
+  final VoidCallback onToggle;
 
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    final item = widget.fileResult.file;
-    final count = widget.fileResult.matchCount;
+    final item = fileResult.file;
+    final count = fileResult.matchCount;
+    final expanded = !collapsed;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         InkWell(
-          onTap: () => setState(() => _expanded = !_expanded),
+          onTap: onToggle,
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
             child: Row(
               children: [
                 Icon(
-                  _expanded ? Icons.keyboard_arrow_down : Icons.keyboard_arrow_right,
+                  expanded ? Icons.keyboard_arrow_down : Icons.keyboard_arrow_right,
                   size: 16,
                   color: cs.onSurfaceVariant,
                 ),
@@ -228,14 +295,14 @@ class _FileSectionState extends State<_FileSection> {
             ),
           ),
         ),
-        if (_expanded)
-          ...widget.fileResult.matches.map(
+        if (expanded)
+          ...fileResult.matches.map(
             (match) => _MatchRow(
               file: item,
               match: match,
-              fileResult: widget.fileResult,
-              replacePattern: widget.replacePattern,
-              cubit: widget.cubit,
+              fileResult: fileResult,
+              replacePattern: replacePattern,
+              cubit: cubit,
             ),
           ),
       ],

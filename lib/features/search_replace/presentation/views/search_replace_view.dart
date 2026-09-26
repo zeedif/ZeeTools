@@ -1,5 +1,7 @@
 import 'package:file_picker/file_picker.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '/inject_dependencies.dart';
@@ -41,13 +43,55 @@ class _SearchReplaceContentState extends State<_SearchReplaceContent> {
   final _fabNotifier = getIt<ValueNotifier<List<SpeedDialAction>>>();
 
   @override
+  void initState() {
+    super.initState();
+    HardwareKeyboard.instance.addHandler(_handleShortcut);
+  }
+
+  @override
   void dispose() {
+    HardwareKeyboard.instance.removeHandler(_handleShortcut);
     // TODO: lograr que se limpie antes de cerrar los elementos.
     // Diferir la limpieza al siguiente frame — el árbol está bloqueado durante dispose.
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _fabNotifier.value = [];
     });
     super.dispose();
+  }
+
+  // Mismos atajos que el widget de búsqueda de VS Code (Alt en Windows/Linux,
+  // Cmd+Alt en macOS para los toggles; Ctrl+F es igual en las tres plataformas).
+  bool _handleShortcut(KeyEvent event) {
+    if (event is! KeyDownEvent) return false;
+    final cubit = context.read<SearchReplaceCubit>();
+    final key = event.logicalKey;
+
+    if (key == LogicalKeyboardKey.keyF && HardwareKeyboard.instance.isControlPressed) {
+      cubit.focusSearchField();
+      return true;
+    }
+
+    final altCombo = defaultTargetPlatform == TargetPlatform.macOS
+        ? HardwareKeyboard.instance.isMetaPressed && HardwareKeyboard.instance.isAltPressed
+        : HardwareKeyboard.instance.isAltPressed;
+    if (!altCombo) return false;
+
+    switch (key) {
+      case LogicalKeyboardKey.keyC:
+        cubit.toggleCaseSensitivity();
+        return true;
+      case LogicalKeyboardKey.keyW:
+        cubit.toggleWholeWord();
+        return true;
+      case LogicalKeyboardKey.keyR:
+        cubit.toggleRegexMode();
+        return true;
+      case LogicalKeyboardKey.keyP:
+        cubit.togglePreserveCase();
+        return true;
+      default:
+        return false;
+    }
   }
 
   void _updateFab(SearchReplaceState state) {
@@ -515,6 +559,7 @@ typedef _ResultsData = ({
   String replacePattern,
   bool isProcessing,
   String searchPattern,
+  bool hasSearched,
 });
 
 class _SearchPanel extends StatelessWidget {
@@ -537,14 +582,20 @@ class _SearchPanel extends StatelessWidget {
                 replacePattern: s.replacePattern,
                 isProcessing: s.isProcessing,
                 searchPattern: s.searchPattern,
+                hasSearched: s.hasSearched,
               ),
             ),
             builder: (context, data) {
               if (data == null) return const SizedBox.shrink();
               if (data.results.isEmpty && !data.isProcessing) {
+                final message = switch ((data.searchPattern.isEmpty, data.hasSearched)) {
+                  (true, _) => 'Introduce un patrón de búsqueda',
+                  (false, false) => 'Pulsa buscar (Ctrl+Enter) para ver coincidencias',
+                  (false, true) => 'Sin resultados',
+                };
                 return Center(
                   child: Text(
-                    data.searchPattern.isEmpty ? 'Introduce un patrón de búsqueda' : 'Sin resultados',
+                    message,
                     textAlign: TextAlign.center,
                     style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: Theme.of(context).colorScheme.outline),
                   ),
@@ -577,94 +628,116 @@ typedef _SearchFormData = ({
   bool resultsEmpty,
 });
 
-class _SearchForm extends StatelessWidget {
+class _SearchForm extends StatefulWidget {
   const _SearchForm();
+
+  @override
+  State<_SearchForm> createState() => _SearchFormState();
+}
+
+class _SearchFormState extends State<_SearchForm> {
+  final _searchFocusNode = FocusNode();
+
+  @override
+  void dispose() {
+    _searchFocusNode.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
     final cubit = context.read<SearchReplaceCubit>();
     final cs = Theme.of(context).colorScheme;
-    return BlocSelector<SearchReplaceCubit, SearchReplaceState, _SearchFormData?>(
-      selector: (state) => state.mapOrNull(
-        ready: (s) => (
-          searchPattern: s.searchPattern,
-          replacePattern: s.replacePattern,
-          isRegexMode: s.isRegexMode,
-          isCaseSensitive: s.isCaseSensitive,
-          isWholeWord: s.isWholeWord,
-          preserveCase: s.preserveCase,
-          patternError: s.patternError,
-          isProcessing: s.isProcessing,
-          resultsEmpty: s.results.isEmpty,
+    return BlocListener<SearchReplaceCubit, SearchReplaceState>(
+      listenWhen: (previous, current) => previous.mapOrNull(ready: (s) => s.focusSearchToken) != current.mapOrNull(ready: (s) => s.focusSearchToken),
+      listener: (context, state) => _searchFocusNode.requestFocus(),
+      child: BlocSelector<SearchReplaceCubit, SearchReplaceState, _SearchFormData?>(
+        selector: (state) => state.mapOrNull(
+          ready: (s) => (
+            searchPattern: s.searchPattern,
+            replacePattern: s.replacePattern,
+            isRegexMode: s.isRegexMode,
+            isCaseSensitive: s.isCaseSensitive,
+            isWholeWord: s.isWholeWord,
+            preserveCase: s.preserveCase,
+            patternError: s.patternError,
+            isProcessing: s.isProcessing,
+            resultsEmpty: s.results.isEmpty,
+          ),
         ),
+        builder: (context, s) {
+          if (s == null) return const SizedBox.shrink();
+          final canSearch = s.patternError == null && s.searchPattern.isNotEmpty && !s.isProcessing;
+          final canReplace = canSearch && !s.resultsEmpty;
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              RegexTextField(
+                label: 'Buscar',
+                focusNode: _searchFocusNode,
+                isRegexMode: s.isRegexMode,
+                errorText: s.patternError,
+                initialValue: s.searchPattern,
+                hintText: s.isRegexMode ? r'(\w+)\s+\1' : 'Texto a buscar…',
+                onChanged: cubit.changePattern,
+                onSubmit: canSearch ? cubit.executeSearch : null,
+                suffixIcons: [
+                  SelectionPill(
+                    dense: true,
+                    selected: s.isRegexMode,
+                    tooltip: 'Modo Regex (Alt+R)',
+                    onTap: cubit.toggleRegexMode,
+                    child: const SvgIcon('assets/icons/regex.svg'),
+                  ),
+                  SelectionPill(
+                    dense: true,
+                    selected: s.isCaseSensitive,
+                    tooltip: 'Coincidir mayúsculas y minúsculas (Alt+C)',
+                    onTap: cubit.toggleCaseSensitivity,
+                    child: const SvgIcon('assets/icons/case-sensitive.svg'),
+                  ),
+                  SelectionPill(
+                    dense: true,
+                    selected: s.isWholeWord,
+                    tooltip: 'Solo palabras completas (Alt+W)',
+                    onTap: cubit.toggleWholeWord,
+                    child: const SvgIcon('assets/icons/whole-word.svg'),
+                  ),
+                  _SuffixIconButton(
+                    icon: Icons.search,
+                    tooltip: 'Buscar (Ctrl+F)',
+                    onTap: canSearch ? cubit.executeSearch : null,
+                  ),
+                ],
+              ),
+              const SizedBox(height: 10),
+              RegexTextField(
+                label: 'Reemplazar',
+                isRegexMode: false,
+                initialValue: s.replacePattern,
+                hintText: r'Usa $1, ${nombre} para grupos; $$ para $ literal',
+                onChanged: cubit.changeReplacement,
+                onSubmit: canReplace ? cubit.replaceAll : null,
+                suffixIcons: [
+                  SelectionPill(
+                    dense: true,
+                    selected: s.preserveCase,
+                    tooltip: 'Conservar mayúsculas/minúsculas (Alt+P)',
+                    onTap: cubit.togglePreserveCase,
+                    child: const SvgIcon('assets/icons/preserve-case.svg'),
+                  ),
+                  _SuffixIconButton(
+                    icon: Icons.find_replace_rounded,
+                    tooltip: 'Reemplazar todo',
+                    color: cs.error,
+                    onTap: canReplace ? cubit.replaceAll : null,
+                  ),
+                ],
+              ),
+            ],
+          );
+        },
       ),
-      builder: (context, s) {
-        if (s == null) return const SizedBox.shrink();
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            RegexTextField(
-              label: 'Buscar',
-              isRegexMode: s.isRegexMode,
-              errorText: s.patternError,
-              initialValue: s.searchPattern,
-              hintText: s.isRegexMode ? r'(\w+)\s+\1' : 'Texto a buscar…',
-              onChanged: cubit.changePattern,
-              suffixIcons: [
-                SelectionPill(
-                  dense: true,
-                  selected: s.isRegexMode,
-                  tooltip: 'Modo Regex',
-                  onTap: cubit.toggleRegexMode,
-                  child: const SvgIcon('assets/icons/regex.svg'),
-                ),
-                SelectionPill(
-                  dense: true,
-                  selected: s.isCaseSensitive,
-                  tooltip: 'Coincidir mayúsculas y minúsculas',
-                  onTap: cubit.toggleCaseSensitivity,
-                  child: const SvgIcon('assets/icons/case-sensitive.svg'),
-                ),
-                SelectionPill(
-                  dense: true,
-                  selected: s.isWholeWord,
-                  tooltip: 'Solo palabras completas',
-                  onTap: cubit.toggleWholeWord,
-                  child: const SvgIcon('assets/icons/whole-word.svg'),
-                ),
-                _SuffixIconButton(
-                  icon: Icons.search,
-                  tooltip: 'Buscar',
-                  onTap: s.patternError != null || s.searchPattern.isEmpty || s.isProcessing ? null : cubit.executeSearch,
-                ),
-              ],
-            ),
-            const SizedBox(height: 10),
-            RegexTextField(
-              label: 'Reemplazar',
-              isRegexMode: false,
-              initialValue: s.replacePattern,
-              hintText: r'Usa $1, ${nombre} para grupos; $$ para $ literal',
-              onChanged: cubit.changeReplacement,
-              suffixIcons: [
-                SelectionPill(
-                  dense: true,
-                  selected: s.preserveCase,
-                  tooltip: 'Conservar mayúsculas/minúsculas',
-                  onTap: cubit.togglePreserveCase,
-                  child: const SvgIcon('assets/icons/preserve-case.svg'),
-                ),
-                _SuffixIconButton(
-                  icon: Icons.find_replace_rounded,
-                  tooltip: 'Reemplazar todo',
-                  color: cs.error,
-                  onTap: s.patternError != null || s.searchPattern.isEmpty || s.isProcessing || s.resultsEmpty ? null : cubit.replaceAll,
-                ),
-              ],
-            ),
-          ],
-        );
-      },
     );
   }
 }

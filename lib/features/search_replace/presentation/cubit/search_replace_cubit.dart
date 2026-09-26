@@ -123,6 +123,7 @@ class SearchReplaceCubit extends Cubit<SearchReplaceState> {
         searchPattern: '',
         replacePattern: '',
         patternError: null,
+        hasSearched: false,
         results: [],
         totalMatches: 0,
         lastReplacedCount: null,
@@ -140,6 +141,7 @@ class SearchReplaceCubit extends Cubit<SearchReplaceState> {
         searchPattern: '',
         replacePattern: '',
         patternError: null,
+        hasSearched: false,
         results: [],
         totalMatches: 0,
         lastReplacedCount: null,
@@ -223,6 +225,7 @@ class SearchReplaceCubit extends Cubit<SearchReplaceState> {
       ready.copyWith(
         searchPattern: pattern,
         patternError: _validatePattern(pattern, ready.isRegexMode),
+        hasSearched: false,
         lastReplacedCount: null,
         errorMessage: null,
       ),
@@ -279,6 +282,12 @@ class SearchReplaceCubit extends Cubit<SearchReplaceState> {
     _settingsRepo.savePreserveCase(next);
   }
 
+  void focusSearchField() {
+    final ready = _ready;
+    if (ready == null) return;
+    emit(ready.copyWith(focusSearchToken: ready.focusSearchToken + 1));
+  }
+
   // ── Búsqueda / reemplazo ───────────────────────────────────────────────────
 
   // Restartable: si se dispara otra búsqueda antes de que esta termine, su
@@ -297,7 +306,14 @@ class SearchReplaceCubit extends Cubit<SearchReplaceState> {
       (f) => _emitReady((s) => s.copyWith(isProcessing: false, errorMessage: f.toString())),
       (results) {
         final total = results.fold<int>(0, (s, r) => s + r.totalMatches);
-        _emitReady((s) => s.copyWith(isProcessing: false, results: results, totalMatches: total));
+        _emitReady(
+          (s) => s.copyWith(
+            isProcessing: false,
+            hasSearched: true,
+            results: results,
+            totalMatches: total,
+          ),
+        );
       },
     );
   }
@@ -330,6 +346,7 @@ class SearchReplaceCubit extends Cubit<SearchReplaceState> {
               _emitReady(
                 (s) => s.copyWith(
                   isProcessing: false,
+                  hasSearched: true,
                   lastReplacedCount: count,
                   results: results,
                   totalMatches: total,
