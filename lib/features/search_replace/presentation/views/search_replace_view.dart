@@ -490,7 +490,7 @@ class _SingleEpubView extends StatelessWidget {
     return BlocSelector<SearchReplaceCubit, SearchReplaceState, _FileSelectorData?>(
       selector: (state) => state.mapOrNull(
         ready: (s) => (
-          files: s.epubs[epubIndex].textFiles,
+          files: s.epubs[epubIndex].files,
           selectedIds: s.epubs[epubIndex].selectedFileIds,
           pillOrder: s.pillOrder,
           groupByPillOrder: s.groupFilesByPillOrder,

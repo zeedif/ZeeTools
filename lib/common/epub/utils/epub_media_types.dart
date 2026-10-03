@@ -14,8 +14,23 @@ abstract final class EpubMediaTypes {
     'text/plain',
   };
 
+  // Imágenes ráster core de EPUB 3.4.
+  static const Set<String> _rasterImageTypes = {
+    'image/jpeg',
+    'image/png',
+    'image/gif',
+    'image/webp',
+    'image/avif',
+    'image/jxl',
+  };
+
   static bool isTextType(String mediaType) {
     final base = mediaType.split(';').first.trim().toLowerCase();
     return _textTypes.contains(base);
+  }
+
+  static bool isRasterImageType(String mediaType) {
+    final base = mediaType.split(';').first.trim().toLowerCase();
+    return _rasterImageTypes.contains(base);
   }
 }

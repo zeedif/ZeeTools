@@ -183,7 +183,7 @@ class SearchReplaceCubit extends Cubit<SearchReplaceState> {
     List<String>? idsFor(LoadedEpub e) => switch (profile) {
       FileSelectionProfile.all => null,
       FileSelectionProfile.none => const [],
-      _ => profile.matchingIds(e.textFiles),
+      _ => profile.matchingIds(e.files),
     };
 
     final updater = (LoadedEpub e) => e.copyWith(selectedFileIds: idsFor(e));
@@ -470,7 +470,7 @@ class SearchReplaceCubit extends Cubit<SearchReplaceState> {
       final result = await _epubRepo.loadEpub(path);
       result.fold(
         (_) {},
-        (textFiles) => epubs.add(LoadedEpub(path: path, textFiles: textFiles)),
+        (textFiles) => epubs.add(LoadedEpub(path: path, files: textFiles)),
       );
     }
     return epubs;

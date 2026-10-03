@@ -1,5 +1,6 @@
 import 'package:go_router/go_router.dart';
 
+import '/features/image_optimizer/image_optimizer_route.dart';
 import '/features/search_replace/search_replace_route.dart';
 import 'presentation/views/dashboard_view.dart';
 
@@ -13,6 +14,7 @@ abstract final class HomeRoute {
     builder: (_, _) => const DashboardView(),
     routes: [
       SearchReplaceRoute.route,
+      ImageOptimizerRoute.route,
     ],
   );
 }

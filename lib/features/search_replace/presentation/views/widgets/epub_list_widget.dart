@@ -98,7 +98,7 @@ class EpubListWidget extends StatelessWidget {
         !epubs.isPureImplicit &&
             epubs.every((e) {
               if (e.isImplicit) return false;
-              final expected = p.matchingIds(e.textFiles);
+              final expected = p.matchingIds(e.files);
               final ids = e.selectedFileIds ?? [];
               if (expected.isEmpty && ids.isEmpty) return true;
               return expected.length == ids.length && expected.every((id) => ids.contains(id));

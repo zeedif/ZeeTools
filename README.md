@@ -8,7 +8,7 @@ ZeeTools es un conjunto de herramientas enfocadas en la gestión y creación de 
 - Generación de plantillas EPUB 3.4 con edición de roles Aria y metadatos.
 - Extracción y edición de metadatos mediante arrastrar y soltar (Drag & Drop).
 - Conversión automatizada de formatos DOCX/Markdown a EPUB integrando Pandoc y filtros Lua.
-- Optimización y compresión de imágenes sin pérdida (JPG, PNG a JXL y AVIF) apoyado por binarios como `optipng` y `jpegoptim`.
+- Optimización de imágenes sueltas o dentro de EPUBs (con o sin pérdida perceptible) al formato más ligero entre los core media types de EPUB 3.4 que elijas (JPEG, PNG, WebP, AVIF, JPEG XL), eliminando el canal alfa cuando no se usa y actualizando el OPF y las referencias si cambia la extensión. Usa jpegli, mozjpeg, libwebp, libavif, libjxl, oxipng y SSIMULACRA2.
 - *Flavor* dedicado para funcionar como cliente de sincronización con ZeePubs Server.
 
 ### Requisitos Previos
@@ -18,7 +18,7 @@ Asegúrate de tener instalado lo siguiente en tu sistema:
 - Flutter SDK (versión 3.44 o superior), puedes seguir la guía de instalación en [Flutter Installation](https://flutter.dev/docs/get-started/install).
 - Dart SDK (versión 3.12 o superior), que se incluye con Flutter.
 - Un editor de código compatible como Visual Studio Code o Android Studio.
-- *Dependencias del sistema:* Pandoc, 7zip, OptiPNG, JpegOptim.
+- *Dependencias del sistema:* Pandoc, 7zip. Las herramientas de imagen se descargan solas en Windows la primera vez que se usan; en Linux/macOS deben estar en el PATH (`cjpegli`, `cjxl`, `djxl`, `ssimulacra2`, `cwebp`, `dwebp`, `avifenc`, `avifdec`, `oxipng`, `jpegtran` y `cjpeg` de mozjpeg).
 
 **Linux**
 
@@ -143,7 +143,7 @@ lib/
 │   │   ├── utils/                      # EpubMediaTypes, EpubPathUtils
 │   │   └── repositories/              # EpubRepository (interfaz + impl)
 │   ├── file/                           # Wrappers para file_picker o manipulación de I/O
-│   ├── process/                        # Wrappers para ejecutar binarios (Pandoc, 7zip, OptiPNG, JpegOptim)
+│   ├── process/                        # Wrappers para ejecutar binarios (Pandoc, 7zip, codificadores de imagen)
 │   ├── theme/                          # Temas, tipografías y colores
 │   └── utils/                          # Utilidades (conversores, debounce, helpers)
 │
@@ -184,10 +184,10 @@ lib/
 │   │   ├── data/                       # Ejecución de scripts locales (pandoc, filtros lua, 7z, CSS)
 │   │   └── presentation/               # BLoCs (Manejo de estado de conversión), UI de progreso
 │   │
-│   ├── image_optimizer/                # Herramienta: Compresión de Imágenes (JXL, AVIF, JPG)
-│   │   ├── core/                       # Entidades (ImageTask, Formats), Interfaces
-│   │   ├── data/                       # Implementación (Llamadas a CLI/librerías: optipng, jpegoptim)
-│   │   └── presentation/               # BLoCs, UI de lote de imágenes, selectores de formato
+│   ├── image_optimizer/                # Herramienta: Optimización de imágenes sueltas o dentro de EPUBs
+│   │   ├── domain/                     # Formatos, opciones, resultados, trabajos por imagen
+│   │   ├── data/                       # Análisis de píxeles, motor de candidatos (CLIs), repositorios
+│   │   └── presentation/               # Cubit, vistas de imágenes / un EPUB / varios EPUBs
 │   │
 │   └── zeepubs_client/                 # Flavor: Cliente para ZeePubs Server (Opcional)
 │       ├── core/                       # Modelos de usuario, tokens, repositorios abstractos

@@ -19,7 +19,7 @@ sealed class LoadedEpub with _$LoadedEpub {
 
   const factory LoadedEpub({
     required String path,
-    required List<EpubManifestItem> textFiles,
+    required List<EpubManifestItem> files,
     List<String>? selectedFileIds, // null = implicit all (default)
   }) = _LoadedEpub;
 
@@ -30,14 +30,14 @@ sealed class LoadedEpub with _$LoadedEpub {
   bool get isExplicitlyInactive => selectedFileIds != null && selectedFileIds!.isEmpty;
 
   int get explicitCount => selectedFileIds?.length ?? 0;
-  int get totalFileCount => textFiles.length;
+  int get totalFileCount => files.length;
 
-  // Archivos realmente activos para búsqueda/reemplazo.
+  // Archivos realmente activos para la operación de la herramienta.
   List<EpubManifestItem> get activeFiles {
     final ids = selectedFileIds;
-    if (ids == null) return textFiles;
+    if (ids == null) return files;
     if (ids.isEmpty) return const [];
-    return textFiles.where((f) => ids.contains(f.id)).toList();
+    return files.where((f) => ids.contains(f.id)).toList();
   }
 }
 
