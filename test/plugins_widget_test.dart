@@ -55,7 +55,7 @@ Widget _wrap({required Widget child, required PluginsState state}) {
 }
 
 // ---------------------------------------------------------------------------
-// PluginErrorBoundary
+// PluginErrorBoundary Tests
 // ---------------------------------------------------------------------------
 
 void main() {
@@ -118,10 +118,70 @@ void main() {
       expect(find.text('Contenido del plugin'), findsOneWidget);
       expect(find.text('Problema en el complemento "TestPlugin"'), findsNothing);
     });
+
+    testWidgets('captures real exceptions thrown during widget build and displays recovery screen', (tester) async {
+      Object? reportedError;
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: PluginErrorBoundary(
+            pluginName: 'CrashingPlugin',
+            onError: (err, _) => reportedError = err,
+            child: Builder(
+              builder: (context) {
+                throw Exception('Fallo real en el método build del widget');
+              },
+            ),
+          ),
+        ),
+      );
+
+      // In Flutter widget tests, Flutter framework logs the exception
+      expect(tester.takeException(), isNotNull);
+      await tester.pump();
+
+      expect(reportedError, isNotNull);
+      expect(find.text('Problema en el complemento "CrashingPlugin"'), findsOneWidget);
+      expect(find.byIcon(Icons.warning_amber_rounded), findsOneWidget);
+      expect(find.text('Reintentar'), findsOneWidget);
+    });
+
+    testWidgets('retry remounts child and recovers if error condition ceases', (tester) async {
+      bool fail = true;
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: StatefulBuilder(
+            builder: (context, setParentState) {
+              return PluginErrorBoundary(
+                pluginName: 'FlakyPlugin',
+                child: Builder(
+                  builder: (context) {
+                    if (fail) throw Exception('Fallo transitorio');
+                    return const Text('Plugin recuperado exitosamente');
+                  },
+                ),
+              );
+            },
+          ),
+        ),
+      );
+
+      expect(tester.takeException(), isNotNull);
+      await tester.pump();
+      expect(find.text('Problema en el complemento "FlakyPlugin"'), findsOneWidget);
+
+      fail = false;
+      await tester.tap(find.text('Reintentar'));
+      await tester.pump();
+
+      expect(find.text('Plugin recuperado exitosamente'), findsOneWidget);
+      expect(find.text('Problema en el complemento "FlakyPlugin"'), findsNothing);
+    });
   });
 
   // -------------------------------------------------------------------------
-  // PluginsSettingsSection — estado vacío
+  // PluginsSettingsSection — sin complementos
   // -------------------------------------------------------------------------
 
   group('PluginsSettingsSection — sin complementos', () {

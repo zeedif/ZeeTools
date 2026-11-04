@@ -1,9 +1,15 @@
 import 'dart:convert';
+import 'dart:io';
+
+import 'package:archive/archive.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:zeetools/features/plugins/domain/plugin_manifest.dart';
-import 'package:zeetools/features/plugins/domain/plugin_extension.dart';
+import 'package:path/path.dart' as p;
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:zeetools/features/plugins/data/plugin_registry.dart';
+import 'package:zeetools/features/plugins/data/plugin_repository.dart';
+import 'package:zeetools/features/plugins/domain/plugin_extension.dart';
+import 'package:zeetools/features/plugins/domain/plugin_manifest.dart';
 
 class _MockExtension implements ZeeToolsPluginExtension {
   final String _id;
@@ -26,6 +32,8 @@ class _MockExtension implements ZeeToolsPluginExtension {
 }
 
 void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
+
   group('PluginManifest', () {
     test('parses valid manifest correctly', () {
       const rawJson = '''{
@@ -116,6 +124,104 @@ void main() {
       registry.register(extA);
       registry.register(extB);
       expect(registry.allExtensions, containsAll([extA, extB]));
+    });
+  });
+
+  group('PluginRepository — Seguridad de Rutas y Prevención de Zip Slip', () {
+    test('isValidPluginId validates identifiers strictly', () {
+      // Identificadores válidos
+      expect(PluginRepository.isValidPluginId('valid_plugin_123'), isTrue);
+      expect(PluginRepository.isValidPluginId('my-tool-v2'), isTrue);
+      expect(PluginRepository.isValidPluginId('extension_a'), isTrue);
+
+      // Identificadores maliciosos o no permitidos
+      expect(PluginRepository.isValidPluginId('../escape'), isFalse);
+      expect(PluginRepository.isValidPluginId('../../root'), isFalse);
+      expect(PluginRepository.isValidPluginId('/etc/passwd'), isFalse);
+      expect(PluginRepository.isValidPluginId(r'C:\Windows'), isFalse);
+      expect(PluginRepository.isValidPluginId('id con espacios'), isFalse);
+      expect(PluginRepository.isValidPluginId('..'), isFalse);
+      expect(PluginRepository.isValidPluginId('.'), isFalse);
+      expect(PluginRepository.isValidPluginId(''), isFalse);
+      expect(PluginRepository.isValidPluginId(null), isFalse);
+    });
+
+    test('installPluginFromZip rejects manifest with path traversal id', () async {
+      SharedPreferences.setMockInitialValues({});
+      final prefs = await SharedPreferences.getInstance();
+      final tempDir = await Directory.systemTemp.createTemp('zeetools_test_sec_');
+      final pluginsDir = Directory(p.join(tempDir.path, 'plugins'));
+      await pluginsDir.create();
+
+      final repo = PluginRepository(prefs, pluginsDirectory: pluginsDir);
+
+      // Crear archivo ZIP con manifest malicioso
+      final archive = Archive();
+      final manifestJson = utf8.encode('{"id": "../../malicious_escape", "name": "Evil"}');
+      archive.addFile(ArchiveFile('manifest.json', manifestJson.length, manifestJson));
+      final zipBytes = ZipEncoder().encode(archive);
+
+      final zipFile = File(p.join(tempDir.path, 'test_malicious_id.zip'));
+      await zipFile.writeAsBytes(zipBytes);
+
+      await expectLater(
+        () => repo.installPluginFromZip(zipFile.path),
+        throwsA(isA<FormatException>()),
+      );
+
+      await tempDir.delete(recursive: true);
+    });
+
+    test('installPluginFromZip rejects zip with Zip Slip directory traversal files', () async {
+      SharedPreferences.setMockInitialValues({});
+      final prefs = await SharedPreferences.getInstance();
+      final tempDir = await Directory.systemTemp.createTemp('zeetools_test_sec_');
+      final pluginsDir = Directory(p.join(tempDir.path, 'plugins'));
+      await pluginsDir.create();
+
+      final repo = PluginRepository(prefs, pluginsDirectory: pluginsDir);
+
+      // Crear archivo ZIP con id válido pero archivo malicioso que intenta escapar
+      final archive = Archive();
+      final manifestJson = utf8.encode('{"id": "safe_plugin", "name": "Safe"}');
+      archive.addFile(ArchiveFile('manifest.json', manifestJson.length, manifestJson));
+      final evilBytes = utf8.encode('malicious content');
+      archive.addFile(ArchiveFile('../../outside_escape.txt', evilBytes.length, evilBytes));
+      final zipBytes = ZipEncoder().encode(archive);
+
+      final zipFile = File(p.join(tempDir.path, 'test_zip_slip.zip'));
+      await zipFile.writeAsBytes(zipBytes);
+
+      await expectLater(
+        () => repo.installPluginFromZip(zipFile.path),
+        throwsA(isA<FormatException>()),
+      );
+
+      await tempDir.delete(recursive: true);
+    });
+
+    test('uninstallPlugin refuses to delete directories outside plugins folder', () async {
+      SharedPreferences.setMockInitialValues({});
+      final prefs = await SharedPreferences.getInstance();
+      final tempDir = await Directory.systemTemp.createTemp('zeetools_test_sec_');
+      final pluginsDir = Directory(p.join(tempDir.path, 'plugins'));
+      await pluginsDir.create();
+
+      final repo = PluginRepository(prefs, pluginsDirectory: pluginsDir);
+
+      final externalDir = Directory(p.join(tempDir.path, 'protected_folder'));
+      await externalDir.create();
+      final testFile = File(p.join(externalDir.path, 'important.txt'));
+      await testFile.writeAsString('do not delete');
+
+      // Intentar desinstalar apuntando a un directorio ajeno a pluginsDir
+      await repo.uninstallPlugin('some_id', externalDir.path);
+
+      // Verificar que el directorio y archivo protegidos no fueron borrados
+      expect(await externalDir.exists(), isTrue);
+      expect(await testFile.exists(), isTrue);
+
+      await tempDir.delete(recursive: true);
     });
   });
 }

@@ -13,7 +13,18 @@ class PluginRepository {
   final SharedPreferences _prefs;
   Directory? _cachedPluginsDir;
 
-  PluginRepository(this._prefs);
+  static final RegExp _validIdRegex = RegExp(r'^[a-zA-Z0-9_\-]+$');
+
+  /// Valida que el identificador del complemento sea seguro y no contenga
+  /// secuencias de escape de directorio o caracteres no permitidos.
+  static bool isValidPluginId(String? id) {
+    if (id == null || id.isEmpty || id.length > 64) return false;
+    if (id == '.' || id == '..') return false;
+    return _validIdRegex.hasMatch(id);
+  }
+
+  PluginRepository(this._prefs, {Directory? pluginsDirectory})
+      : _cachedPluginsDir = pluginsDirectory;
 
   Future<Directory> getPluginsDirectory() async {
     if (_cachedPluginsDir != null) return _cachedPluginsDir!;
@@ -61,6 +72,8 @@ class PluginRepository {
               final jsonStr = await manifestFile.readAsString();
               final jsonMap = jsonDecode(jsonStr) as Map<String, dynamic>;
               final id = jsonMap['id'] as String? ?? p.basename(entity.path);
+              // Validar que el identificador sea seguro
+              if (!isValidPluginId(id)) continue;
               // Evitar duplicados si ya fue cargado desde el registro nativo
               if (list.any((p) => p.id == id)) continue;
               final isEnabled = _prefs.getBool('plugin_${id}_enabled') ?? true;
@@ -99,22 +112,39 @@ class PluginRepository {
     }
 
     if (manifestArchiveFile == null) {
-      throw Exception('El archivo ZIP no contiene un manifest.json válido');
+      throw const FormatException('El archivo ZIP no contiene un manifest.json válido');
     }
 
     final manifestContent = utf8.decode(manifestArchiveFile.content as List<int>);
     final manifestMap = jsonDecode(manifestContent) as Map<String, dynamic>;
-    final pluginId = manifestMap['id'] as String? ?? 'plugin_${DateTime.now().millisecondsSinceEpoch}';
+    final rawId = manifestMap['id'] as String?;
+    final pluginId = rawId ?? 'plugin_${DateTime.now().millisecondsSinceEpoch}';
+
+    // 1. Validar que el id no contenga caracteres maliciosos o secuencias de escape de ruta
+    if (!isValidPluginId(pluginId)) {
+      throw FormatException(
+        'El identificador del complemento "$pluginId" no es válido. '
+        'Solo se permiten caracteres alfanuméricos, guiones y guiones bajos.',
+      );
+    }
 
     final pluginsDir = await getPluginsDirectory();
-    final targetDir = Directory(p.join(pluginsDir.path, pluginId));
+    final canonicalPluginsDir = p.canonicalize(pluginsDir.path);
+    final targetDir = Directory(p.join(canonicalPluginsDir, pluginId));
+    final canonicalTargetDir = p.canonicalize(targetDir.path);
+
+    // 2. Asegurar que targetDir esté estrictamente contenido dentro de pluginsDir
+    if (!p.isWithin(canonicalPluginsDir, canonicalTargetDir) ||
+        p.equals(canonicalPluginsDir, canonicalTargetDir)) {
+      throw const FormatException('Ruta de destino no válida para el complemento.');
+    }
 
     if (await targetDir.exists()) {
       await targetDir.delete(recursive: true);
     }
     await targetDir.create(recursive: true);
 
-    // Extraer archivos
+    // 3. Extraer archivos con protección estricta contra Zip Slip
     for (final file in archive) {
       if (file.isFile) {
         var relPath = file.name;
@@ -123,7 +153,21 @@ class PluginRepository {
         }
         if (relPath.isEmpty) continue;
 
-        final outFile = File(p.join(targetDir.path, relPath));
+        // Normalizar ruta para detectar intentos de escape (Zip Slip)
+        final normalized = p.normalize(relPath);
+        if (p.isAbsolute(normalized) ||
+            normalized.startsWith('..') ||
+            normalized.contains('/../') ||
+            normalized.contains(r'\..\')) {
+          throw FormatException('Ruta insegura en archivo ZIP (escape de directorio): ${file.name}');
+        }
+
+        final destinationPath = p.canonicalize(p.join(canonicalTargetDir, normalized));
+        if (!p.isWithin(canonicalTargetDir, destinationPath)) {
+          throw FormatException('Intento de Zip Slip detectado en archivo: ${file.name}');
+        }
+
+        final outFile = File(destinationPath);
         await outFile.parent.create(recursive: true);
         await outFile.writeAsBytes(file.content as List<int>);
       }
@@ -138,10 +182,17 @@ class PluginRepository {
   }
 
   Future<void> uninstallPlugin(String id, String directoryPath) async {
+    final pluginsDir = await getPluginsDirectory();
+    final canonicalPluginsDir = p.canonicalize(pluginsDir.path);
+
+    // Solo permitir borrar directorios que estén estrictamente dentro de pluginsDir
     if (directoryPath.isNotEmpty) {
-      final dir = Directory(directoryPath);
-      if (await dir.exists()) {
-        await dir.delete(recursive: true);
+      final canonicalDirPath = p.canonicalize(directoryPath);
+      if (p.isWithin(canonicalPluginsDir, canonicalDirPath)) {
+        final dir = Directory(canonicalDirPath);
+        if (await dir.exists()) {
+          await dir.delete(recursive: true);
+        }
       }
     }
     await _prefs.remove('plugin_${id}_enabled');
