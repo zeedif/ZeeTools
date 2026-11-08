@@ -4,9 +4,10 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import '/common/theme/app_dimensions.dart';
 import '/common/widgets/form_section.dart';
 import '/common/widgets/outlined_dropdown.dart';
+import '/features/plugins/data/plugin_registry.dart';
+import '/inject_dependencies.dart';
 import '../cubit/settings_cubit.dart';
 import '../cubit/settings_state.dart';
-import '/features/plugins/presentation/views/plugins_settings_section.dart';
 
 class SettingsView extends StatelessWidget {
   const SettingsView({super.key});
@@ -38,8 +39,22 @@ class SettingsView extends StatelessWidget {
                   ),
                 ],
               ),
-              const SizedBox(height: AppSpacing.large),
-              const PluginsSettingsSection(),
+              if (getIt<PluginRegistry>().all.isNotEmpty) ...[
+                const SizedBox(height: AppSpacing.large),
+                FormSection(
+                  title: 'Complementos',
+                  children: [
+                    for (final plugin in getIt<PluginRegistry>().all)
+                      SwitchListTile(
+                        secondary: Icon(plugin.icon),
+                        title: Text(plugin.name),
+                        subtitle: plugin.description.isEmpty ? null : Text(plugin.description),
+                        value: !state.preferences.disabledPlugins.contains(plugin.id),
+                        onChanged: (enabled) => context.read<SettingsCubit>().setPluginEnabled(plugin.id, enabled),
+                      ),
+                  ],
+                ),
+              ],
             ],
           );
         },

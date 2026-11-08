@@ -1,45 +1,20 @@
-import '../domain/plugin_extension.dart';
+import '../domain/zeetools_plugin.dart';
 
-/// In-memory registry of active [ZeeToolsPluginExtension] instances.
-///
-/// Acts as the runtime bridge between installed plugins (identified by
-/// [PluginManifest.id]) and their native Dart widget implementations.
-///
-/// Extensions are registered at app startup via [register] and can be
-/// removed at runtime via [unregister]. Only extensions that are both
-/// registered here *and* have their corresponding [PluginManifest.isEnabled]
-/// set to `true` will be rendered on the dashboard and routable via
-/// `/plugin/:id`.
-///
-/// ## Typical usage
-///
-/// ```dart
-/// // In inject_dependencies.dart — startup:
-/// final registry = PluginRegistry();
-/// registry.register(const MyExtension());
-/// getIt.registerLazySingleton<PluginRegistry>(() => registry);
-/// ```
+// Los complementos por id. Un id repetido o que no sirve como segmento de ruta detiene el arranque: ningún
+// complemento puede ocupar el lugar de otro.
 class PluginRegistry {
-  final Map<String, ZeeToolsPluginExtension> _extensions = {};
-
-  /// Registers [extension] under its [ZeeToolsPluginExtension.id].
-  ///
-  /// Replaces any previously registered extension with the same id.
-  void register(ZeeToolsPluginExtension extension) {
-    _extensions[extension.id] = extension;
+  PluginRegistry(Iterable<ZeeToolsPlugin> plugins) {
+    for (final plugin in plugins) {
+      if (!_validId.hasMatch(plugin.id)) throw ArgumentError.value(plugin.id, 'id', 'solo minúsculas, cifras, «_» y «-»');
+      if (_byId.containsKey(plugin.id)) throw StateError('Dos complementos usan el id «${plugin.id}»');
+      _byId[plugin.id] = plugin;
+    }
   }
 
-  /// Removes the extension registered under [id], if any.
-  void unregister(String id) {
-    _extensions.remove(id);
-  }
+  static final _validId = RegExp(r'^[a-z0-9][a-z0-9_-]{0,63}$');
+  final Map<String, ZeeToolsPlugin> _byId = {};
 
-  /// Returns the extension registered under [id], or `null` if absent.
-  ZeeToolsPluginExtension? get(String id) => _extensions[id];
+  Iterable<ZeeToolsPlugin> get all => _byId.values;
 
-  /// Whether an extension is registered under [id].
-  bool has(String id) => _extensions.containsKey(id);
-
-  /// Returns a list of all currently registered [ZeeToolsPluginExtension] instances.
-  List<ZeeToolsPluginExtension> get allExtensions => _extensions.values.toList();
+  ZeeToolsPlugin? operator [](String id) => _byId[id];
 }

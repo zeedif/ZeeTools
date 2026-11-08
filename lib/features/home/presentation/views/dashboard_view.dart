@@ -6,134 +6,55 @@ import '/features/epub_migrator/epub_migrator_route.dart';
 import '/features/epub_templater/epub_templater_route.dart';
 import '/features/image_optimizer/image_optimizer_route.dart';
 import '/features/metadata_editor/metadata_editor_route.dart';
-import '/features/plugins/presentation/cubit/plugins_cubit.dart';
-import '/features/plugins/presentation/cubit/plugins_state.dart';
+import '/features/plugins/data/plugin_registry.dart';
+import '/features/plugins/plugins_route.dart';
 import '/features/search_replace/search_replace_route.dart';
+import '/features/settings/presentation/cubit/settings_cubit.dart';
+import '/inject_dependencies.dart';
 
 class DashboardView extends StatelessWidget {
   const DashboardView({super.key});
 
   @override
   Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-
+    final disabled = context.select((SettingsCubit c) => c.state.preferences.disabledPlugins);
     return Scaffold(
       appBar: AppBar(title: const Text('Dashboard')),
-      body: BlocBuilder<PluginsCubit, PluginsState>(
-        builder: (context, pluginsState) {
-          final enabledPlugins = pluginsState.enabledPlugins;
+      body: GridView.count(
+        crossAxisCount: 3,
+        padding: const EdgeInsets.all(16),
+        crossAxisSpacing: 12,
+        mainAxisSpacing: 12,
+        children: [
+          _ToolCard(icon: Icons.find_replace_rounded, label: 'Búsqueda y Reemplazo', onTap: () => context.goNamed(SearchReplaceRoute.name)),
+          _ToolCard(icon: Icons.photo_size_select_large_rounded, label: 'Optimizador de Imágenes', onTap: () => context.goNamed(ImageOptimizerRoute.name)),
+          _ToolCard(icon: Icons.library_books_outlined, label: 'Plantillas EPUB', onTap: () => context.goNamed(EpubTemplaterRoute.name)),
+          _ToolCard(icon: Icons.edit_note_outlined, label: 'Editor de metadatos', onTap: () => context.goNamed(MetadataEditorRoute.name)),
+          _ToolCard(icon: Icons.auto_fix_high_outlined, label: 'Migrar al template nuevo', onTap: () => context.goNamed(EpubMigratorRoute.name)),
+          for (final plugin in getIt<PluginRegistry>().all)
+            if (!disabled.contains(plugin.id))
+              _ToolCard(icon: plugin.icon, label: plugin.name, onTap: () => context.goNamed(PluginsRoute.name, pathParameters: {'id': plugin.id})),
+        ],
+      ),
+    );
+  }
+}
 
-          return GridView.count(
-            crossAxisCount: 3,
-            padding: const EdgeInsets.all(16),
-            crossAxisSpacing: 12,
-            mainAxisSpacing: 12,
-            children: [
-              Card(
-                child: InkWell(
-                  borderRadius: BorderRadius.circular(12),
-                  onTap: () => context.goNamed(SearchReplaceRoute.name),
-                  child: const Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(Icons.find_replace_rounded, size: 36),
-                      SizedBox(height: 8),
-                      Text('Búsqueda y Reemplazo', textAlign: TextAlign.center),
-                    ],
-                  ),
-                ),
-              ),
-              Card(
-                child: InkWell(
-                  borderRadius: BorderRadius.circular(12),
-                  onTap: () => context.goNamed(ImageOptimizerRoute.name),
-                  child: const Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(Icons.photo_size_select_large_rounded, size: 36),
-                      SizedBox(height: 8),
-                      Text('Optimizador de Imágenes', textAlign: TextAlign.center),
-                    ],
-                  ),
-                ),
-              ),
-              Card(
-                child: InkWell(
-                  borderRadius: BorderRadius.circular(12),
-                  onTap: () => context.goNamed(EpubTemplaterRoute.name),
-                  child: const Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(Icons.library_books_outlined, size: 36),
-                      SizedBox(height: 8),
-                      Text('Plantillas EPUB', textAlign: TextAlign.center),
-                    ],
-                  ),
-                ),
-              ),
-              Card(
-                child: InkWell(
-                  borderRadius: BorderRadius.circular(12),
-                  onTap: () => context.goNamed(MetadataEditorRoute.name),
-                  child: const Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(Icons.edit_note_outlined, size: 36),
-                      SizedBox(height: 8),
-                      Text('Editor de metadatos', textAlign: TextAlign.center),
-                    ],
-                  ),
-                ),
-              ),
-              Card(
-                child: InkWell(
-                  borderRadius: BorderRadius.circular(12),
-                  onTap: () => context.goNamed(EpubMigratorRoute.name),
-                  child: const Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(Icons.auto_fix_high_outlined, size: 36),
-                      SizedBox(height: 8),
-                      Text('Migrar al template nuevo', textAlign: TextAlign.center),
-                    ],
-                  ),
-                ),
-              ),
-
-              // Complementos externos cargados dinámicamente
-              ...enabledPlugins.map(
-                (plugin) => Card(
-                  color: cs.primaryContainer.withValues(alpha: 0.25),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    side: BorderSide(color: cs.primary.withValues(alpha: 0.4), width: 1.5),
-                  ),
-                  child: InkWell(
-                    borderRadius: BorderRadius.circular(12),
-                    onTap: () => context.go('/plugin/${plugin.id}'),
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(plugin.iconData, size: 36, color: cs.primary),
-                        const SizedBox(height: 8),
-                        Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 8),
-                          child: Text(
-                            plugin.name,
-                            textAlign: TextAlign.center,
-                            style: TextStyle(fontWeight: FontWeight.bold, color: cs.primary),
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          );
-        },
+class const _ToolCard({required final IconData icon, required final String label, required final VoidCallback onTap}) extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      child: InkWell(
+        borderRadius: BorderRadius.circular(12),
+        onTap: onTap,
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(icon, size: 36),
+            const SizedBox(height: 8),
+            Text(label, textAlign: TextAlign.center),
+          ],
+        ),
       ),
     );
   }

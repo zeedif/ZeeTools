@@ -26,9 +26,7 @@ import 'features/search_replace/presentation/cubit/search_replace_cubit.dart';
 import 'features/settings/data/preferences_repo.dart';
 import 'features/settings/presentation/cubit/settings_cubit.dart';
 import 'features/plugins/data/plugin_registry.dart';
-import 'features/plugins/data/plugin_repository.dart';
-import 'features/plugins/presentation/cubit/plugins_cubit.dart';
-import 'plugins_init.dart';
+import 'plugins.dart';
 
 final getIt = GetIt.instance;
 
@@ -38,12 +36,8 @@ Future<void> injectDependencies() async {
   getIt.registerLazySingleton<SharedPreferences>(() => prefs);
   final supportDir = await getApplicationSupportDirectory();
 
-  // Plugins System (Picard-style extensible architecture)
-  final pluginRegistry = PluginRegistry();
-  registerCustomPlugins(pluginRegistry);
-  getIt.registerLazySingleton<PluginRegistry>(() => pluginRegistry);
-  getIt.registerLazySingleton<PluginRepository>(() => PluginRepository(getIt()));
-  getIt.registerLazySingleton<PluginsCubit>(() => PluginsCubit(getIt(), getIt<PluginRegistry>()));
+  // Se valida al arrancar: un id repetido o inválido no deja abrir la aplicación.
+  getIt.registerSingleton(PluginRegistry(installedPlugins));
 
   // Repositories
   getIt.registerLazySingleton<EpubRepository>(() => EpubRepositoryImpl());

@@ -9,18 +9,26 @@ abstract interface class PreferencesRepository {
   Future<void> saveThemeMode(ThemeMode mode);
   DateDisplayFormat getDateFormat();
   Future<void> saveDateFormat(DateDisplayFormat format);
+  Future<void> saveDisabledPlugins(Set<String> ids);
 }
 
 class PreferencesRepositoryImpl(final SharedPreferences _prefs) implements PreferencesRepository {
   static const _themeKey = 'theme_mode';
   static const _dateFormatKey = 'date_format';
+  static const _disabledPluginsKey = 'disabled_plugins';
 
   @override
   Preferences getPreferences() {
     final themeIndex = _prefs.getInt(_themeKey) ?? ThemeMode.system.index;
     return Preferences(
       themeMode: ThemeMode.values[themeIndex],
+      disabledPlugins: {...?_prefs.getStringList(_disabledPluginsKey)},
     );
+  }
+
+  @override
+  Future<void> saveDisabledPlugins(Set<String> ids) async {
+    await _prefs.setStringList(_disabledPluginsKey, ids.toList()..sort());
   }
 
   @override

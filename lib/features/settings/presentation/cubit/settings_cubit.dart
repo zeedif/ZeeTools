@@ -17,4 +17,10 @@ class SettingsCubit(this._repository) extends Cubit<SettingsState> {
       ),
     );
   }
+
+  Future<void> setPluginEnabled(String id, bool enabled) async {
+    final disabled = enabled ? state.preferences.disabledPlugins.difference({id}) : {...state.preferences.disabledPlugins, id};
+    await _repository.saveDisabledPlugins(disabled);
+    emit(state.copyWith(preferences: state.preferences.copyWith(disabledPlugins: disabled)));
+  }
 }

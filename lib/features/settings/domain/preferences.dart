@@ -7,5 +7,7 @@ part 'preferences.freezed.dart';
 sealed class Preferences with _$Preferences {
   const factory Preferences({
     @Default(ThemeMode.system) ThemeMode themeMode,
+    // Por id; un complemento nuevo empieza activo.
+    @Default(<String>{}) Set<String> disabledPlugins,
   }) = _Preferences;
 }
