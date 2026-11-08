@@ -6,6 +6,7 @@ import '/common/widgets/form_section.dart';
 import '/common/widgets/outlined_dropdown.dart';
 import '../cubit/settings_cubit.dart';
 import '../cubit/settings_state.dart';
+import '/features/plugins/presentation/views/plugins_settings_section.dart';
 
 class SettingsView extends StatelessWidget {
   const SettingsView({super.key});
@@ -37,6 +38,8 @@ class SettingsView extends StatelessWidget {
                   ),
                 ],
               ),
+              const SizedBox(height: AppSpacing.large),
+              const PluginsSettingsSection(),
             ],
           );
         },

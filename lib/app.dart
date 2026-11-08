@@ -11,6 +11,7 @@ import 'common/router/app_router.dart';
 import 'common/theme/app_theme.dart';
 import 'features/settings/presentation/cubit/settings_cubit.dart';
 import 'features/settings/presentation/cubit/settings_state.dart';
+import 'features/plugins/presentation/cubit/plugins_cubit.dart';
 import 'inject_dependencies.dart';
 
 class MyApp extends StatefulWidget {
@@ -68,8 +69,11 @@ class _MyAppState extends State<MyApp> with WindowListener {
 
   @override
   Widget build(BuildContext context) {
-    return BlocProvider(
-      create: (_) => getIt<SettingsCubit>(),
+    return MultiBlocProvider(
+      providers: [
+        BlocProvider(create: (_) => getIt<SettingsCubit>()),
+        BlocProvider(create: (_) => getIt<PluginsCubit>()),
+      ],
       child: BlocBuilder<SettingsCubit, SettingsState>(
         builder: (_, state) => MaterialApp.router(
           title: 'ZeeTools',
