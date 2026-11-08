@@ -715,7 +715,10 @@ String _opf(EpubArchive archive, MigrationProject project, List<_Final> finals, 
   final coverDoc = finals.where((f) => f.doc.kind == MigrationKind.cover && f.xml != null).firstOrNull;
   final coverSrc = coverDoc == null ? null : elementsOf(coverDoc.xml!, 'img').firstOrNull?.getAttribute('src');
   final coverImage = coverSrc == null ? null : resolvePath(coverDoc!.path, coverSrc);
-  final hasImages = files.keys.any((f) => RegExp(r'\.(jpe?g|png|gif|webp|svg)$', caseSensitive: false).hasMatch(f));
+  // La cubierta y los logos no hacen falta para leer el libro.
+  final illustrated = finals.any(
+    (f) => f.xml != null && f.doc.kind != MigrationKind.cover && f.doc.kind != MigrationKind.colophon && (elementsOf(f.xml!, 'img').isNotEmpty || elementsOf(f.xml!, 'image').isNotEmpty),
+  );
   final docIds = <String, String>{};
   final manifest = StringBuffer();
   String? coverId;
@@ -739,12 +742,7 @@ String _opf(EpubArchive archive, MigrationProject project, List<_Final> finals, 
     ..writeln('<package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="BookId" xml:lang="${escapeXml(lang)}">')
     ..writeln('  <metadata xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:opf="http://www.idpf.org/2007/opf">');
   writeOpfMetadata(b, project.metadata, now: now);
-  b.writeln('    <meta property="schema:accessMode">textual</meta>');
-  if (hasImages) b.writeln('    <meta property="schema:accessMode">visual</meta>');
-  for (final feature in const ['structuralNavigation', 'tableOfContents', 'readingOrder']) {
-    b.writeln('    <meta property="schema:accessibilityFeature">$feature</meta>');
-  }
-  b.writeln('    <meta property="schema:accessibilityHazard">none</meta>');
+  writeAccessibilityMetadata(b, illustrated: illustrated);
   if (coverId != null) b.writeln('    <meta name="cover" content="${escapeXml(coverId)}"/>');
   b
     ..writeln('  </metadata>')

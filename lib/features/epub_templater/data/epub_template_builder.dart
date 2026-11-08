@@ -285,7 +285,10 @@ class EpubTemplateBuilder {
     return source == null ? null : _imageNames[source];
   }
 
-  bool get _hasImages => _imageNames.isNotEmpty;
+  // La cubierta y los logos no hacen falta para leer el libro.
+  bool get _hasIllustrations => project.sections.any(
+    (s) => s.kind.layout != SectionLayout.cover && s.kind.layout != SectionLayout.colophon && [...s.images, ?_headingImageOf(s)].any(_imageNames.containsKey),
+  );
 
   // Los ID de XML no pueden empezar por dígito.
   static String _manifestId(String fileName) => RegExp(r'^[A-Za-z_]').hasMatch(fileName) ? fileName : 'x$fileName';
@@ -336,13 +339,7 @@ class EpubTemplateBuilder {
 
   void _writeMetadata(StringBuffer b) {
     writeOpfMetadata(b, _meta, now: now);
-    void meta(String property, String value) => b.writeln('    <meta property="$property">$value</meta>');
-    meta('schema:accessMode', 'textual');
-    if (_hasImages) meta('schema:accessMode', 'visual');
-    for (final feature in const ['structuralNavigation', 'tableOfContents', 'readingOrder']) {
-      meta('schema:accessibilityFeature', feature);
-    }
-    meta('schema:accessibilityHazard', 'none');
+    writeAccessibilityMetadata(b, illustrated: _hasIllustrations);
     if (_coverImage case final cover?) b.writeln('    <meta name="cover" content="${_manifestId(cover)}"/>');
   }
 

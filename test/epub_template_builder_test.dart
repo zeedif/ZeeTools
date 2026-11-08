@@ -296,6 +296,31 @@ void main() {
     expect(files['OEBPS/Text/cubierta.xhtml'], contains('role="doc-cover"'));
   });
 
+  test('accesibilidad: las ilustraciones hacen el contenido visual; la cubierta y los logos no', () {
+    List<String> a11y(String opf) => [
+      for (final m in XmlDocument.parse(opf).findAllElements('meta'))
+        if ((m.getAttribute('property') ?? '').startsWith('schema:')) '${m.getAttribute('property')}=${m.innerText}',
+    ];
+    final cover = TemplateSection.of(SectionKind.cover).copyWith(images: ['C:/img/cover.png']);
+    final images = {'C:/img/cover.png': _png, 'C:/img/02.png': _png};
+    final plain = a11y(_build(_project(sections: [cover, TemplateSection.of(SectionKind.colophon)]), images: images)['OEBPS/content.opf']!);
+    expect(plain, [
+      'schema:accessMode=textual',
+      'schema:accessModeSufficient=textual',
+      'schema:accessibilityFeature=structuralNavigation',
+      'schema:accessibilityFeature=tableOfContents',
+      'schema:accessibilityFeature=readingOrder',
+      'schema:accessibilityFeature=displayTransformability',
+      'schema:accessibilityHazard=none',
+    ]);
+    final illustrated = a11y(
+      _build(_project(sections: [cover, TemplateSection.of(SectionKind.illustrations).copyWith(images: ['C:/img/02.png'])]), images: images)['OEBPS/content.opf']!,
+    );
+    expect(illustrated, containsAllInOrder(['schema:accessMode=textual', 'schema:accessMode=visual', 'schema:accessModeSufficient=textual,visual']));
+    expect(illustrated, isNot(contains('schema:accessModeSufficient=textual')));
+    expect(illustrated.last, 'schema:accessibilitySummary=Las ilustraciones no tienen descripción alternativa.');
+  });
+
   test('página separadora: el índice apunta a la imagen y el título visible abre el segundo archivo', () {
     final sections = [
       TemplateSection.of(SectionKind.chapter).copyWith(headingStyle: HeadingStyle.separatorPage, headingImage: 'C:/img/05.png', subtitle: 'Mi primer amigo'),

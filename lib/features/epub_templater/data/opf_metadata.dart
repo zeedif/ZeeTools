@@ -141,6 +141,22 @@ void writeOpfMetadata(StringBuffer b, BookMetadata m, {required DateTime now}) {
   meta('dcterms:modified', '${now.toIso8601String().substring(0, 19)}Z');
 }
 
+// Metadatos de accesibilidad (EPUB Accessibility 1.1). Las imágenes no llevan texto alternativo, así que con
+// ilustraciones el libro solo se lee completo con texto e imágenes; el resumen dice lo que los demás no expresan.
+void writeAccessibilityMetadata(StringBuffer b, {required bool illustrated}) {
+  void meta(String property, String value) => b.writeln('    <meta property="$property">$value</meta>');
+  final modes = ['textual', if (illustrated) 'visual'];
+  for (final mode in modes) {
+    meta('schema:accessMode', mode);
+  }
+  meta('schema:accessModeSufficient', modes.join(','));
+  for (final feature in const ['structuralNavigation', 'tableOfContents', 'readingOrder', 'displayTransformability']) {
+    meta('schema:accessibilityFeature', feature);
+  }
+  meta('schema:accessibilityHazard', 'none');
+  if (illustrated) meta('schema:accessibilitySummary', 'Las ilustraciones no tienen descripción alternativa.');
+}
+
 final _knownSubjects = {
   ...literaryGenres,
   ...editionFeatures,
