@@ -136,6 +136,10 @@ void writeOpfMetadata(StringBuffer b, BookMetadata m, {required DateTime now}) {
       ..writeln('    <meta name="calibre:series" content="${xmlEscape(series)}"/>')
       ..writeln('    <meta name="calibre:series_index" content="${xmlEscape(index)}"/>');
   }
+  if (m.collection.trim().isNotEmpty) {
+    b.writeln('    <meta id="coleccion" property="belongs-to-collection"${langAttr(m.collectionLang.trim())}>${xmlEscape(m.collection.trim())}</meta>');
+    meta('collection-type', 'set', refines: 'coleccion');
+  }
   if (m.rating != null) b.writeln('    <meta name="calibre:rating" content="${m.rating}"/>');
 
   meta('dcterms:modified', '${now.toIso8601String().substring(0, 19)}Z');
@@ -214,12 +218,14 @@ class OpfMetadata {
     return null;
   }
 
-  XmlElement? get _seriesCollection => _metadata.childElements.where((e) {
-    if (e.name.local != 'meta' || e.getAttribute('property') != 'belongs-to-collection') return false;
-    // Versiones anteriores de la plantilla marcaban la serie como «set».
-    final type = _refined(e, 'collection-type');
-    return type == null || type == 'series' || type == 'set';
-  }).firstOrNull;
+  Iterable<XmlElement> get _collections => _metadata.childElements.where((e) => e.name.local == 'meta' && e.getAttribute('property') == 'belongs-to-collection');
+
+  // Versiones anteriores de la plantilla marcaban la serie como «set»: solo es la serie si no hay otra y no es la colección.
+  late final XmlElement? _seriesCollection =
+      _collections.where((e) => const [null, 'series'].contains(_refined(e, 'collection-type'))).firstOrNull ??
+      _collections.where((e) => e.getAttribute('id') != 'coleccion' && _refined(e, 'collection-type') == 'set').firstOrNull;
+
+  late final XmlElement? _setCollection = _collections.where((e) => e != _seriesCollection && _refined(e, 'collection-type') == 'set').firstOrNull;
 
   BookMetadata read() {
     final language = _dc('language').firstOrNull?.innerText.trim() ?? '';
@@ -231,6 +237,7 @@ class OpfMetadata {
     }
     final subjects = [for (final e in _dc('subject')) catalogValue(_knownSubjects, e.innerText) ?? e.innerText.trim()];
     final collection = _seriesCollection;
+    final set = _setCollection;
     final rating = double.tryParse(_named('calibre:rating') ?? '');
 
     List<Actor> actors(String element, MarcRelator fallback) => [
@@ -282,6 +289,8 @@ class OpfMetadata {
       seriesLang: series.lang,
       altSeries: series.alternates,
       seriesIndex: (collection == null ? null : _refined(collection, 'group-position')) ?? _named('calibre:series_index') ?? '1',
+      collection: set?.innerText.trim() ?? '',
+      collectionLang: set == null ? '' : _lang(set),
       standalone: series.text.trim().isEmpty,
       originalLanguage: originalLanguageOf(mainTitle.alternates) ?? originalLanguageOf(series.alternates),
       demographic: Demographic.values.where((d) => subjects.contains(d.label)).firstOrNull,
@@ -302,7 +311,7 @@ class OpfMetadata {
     }
     if (e.name.local != 'meta') return false;
     if (_ownedCalibre.contains(e.getAttribute('name'))) return true;
-    if (e.getAttribute('property') == 'dcterms:modified' || e == _seriesCollection) return true;
+    if (e.getAttribute('property') == 'dcterms:modified' || e == _seriesCollection || e == _setCollection) return true;
     return ownedIds.contains(e.getAttribute('refines')?.replaceFirst('#', ''));
   }
 

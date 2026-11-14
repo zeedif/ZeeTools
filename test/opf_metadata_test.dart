@@ -83,6 +83,15 @@ void main() {
       expect(written, contains(kept));
     }
     expect(written, contains('<meta refines="#serie" property="collection-type">series</meta>'));
+    expect(written, isNot(contains('coleccion')));
+
+    // La colección acompaña a la serie sin ocupar su lugar, también al releer.
+    final grouped = OpfMetadata(opf.write(_legacyOpf, m.copyWith(collection: '86'), now: DateTime.utc(2026)));
+    final again = grouped.read();
+    expect((again.series, again.seriesIndex, again.collection), ('86 - EIGHTY-SIX', '2', '86'));
+    final rewritten = grouped.write(_legacyOpf, again.copyWith(standalone: true), now: DateTime.utc(2026));
+    expect(rewritten, contains('<meta id="coleccion" property="belongs-to-collection">86</meta>\n    <meta refines="#coleccion" property="collection-type">set</meta>'));
+    expect(OpfMetadata(rewritten).read().hasSeries, isFalse);
     expect(written, contains('<meta refines="#serie" property="group-position">2</meta>'));
     expect(written, contains('<dc:identifier id="uri-id">https://example.com/86</dc:identifier>'));
     expect(written, contains('2026-01-02T03:04:05Z'));

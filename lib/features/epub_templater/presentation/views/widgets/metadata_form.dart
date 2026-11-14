@@ -279,6 +279,13 @@ class const MetadataForm({
                   ),
                 ),
               ),
+            AppTextField(
+              label: 'Colección',
+              value: m.collection,
+              hint: _hint(MetadataField.collection),
+              helper: 'Obra que reúne varias series o volúmenes sueltos: la principal, sus derivadas y sus secuelas. Vacía si el libro no forma parte de ninguna.',
+              onChanged: (v) => onChanged((m) => m.copyWith(collection: v, collectionLang: main)),
+            ),
             FieldGrid(
               spans: const [2, 1],
               children: [

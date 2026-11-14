@@ -132,6 +132,9 @@ abstract class BookMetadata with _$BookMetadata {
     @Default('en') String seriesLang,
     @Default([]) List<LocalizedText> altSeries,
     @Default('1') String seriesIndex,
+    // Obra que reúne varias series o volúmenes sueltos (la principal, sus derivadas, sus secuelas).
+    @Default('') String collection,
+    @Default('') String collectionLang,
     // Volumen único: sin serie.
     @Default(false) bool standalone,
     // Idioma en que se escribió la obra; sin él se deduce de los equivalentes del título.
