@@ -10,6 +10,7 @@ import 'migration_analyzer.dart';
 import 'migration_writer.dart';
 
 const _assetDir = 'assets/epub_templater';
+const _oldTemplatesDir = 'assets/epub_migrator/old_templates';
 
 typedef OpenedEpub = ({Uint8List bytes, EpubArchive archive, MigrationProject project});
 
@@ -25,7 +26,8 @@ class EpubMigratorRepositoryImpl implements EpubMigratorRepository {
       final bytes = await File(path).readAsBytes();
       final css = await rootBundle.loadString('$_assetDir/style.css');
       // El análisis puede tardar con libros grandes; el archivo se vuelve a leer aquí para las vistas previas.
-      final project = await Isolate.run(() => analyzeEpub(path, EpubArchive.decode(bytes), templateCss: css));
+      final oldTemplates = (latest: await rootBundle.loadString('$_oldTemplatesDir/latest.css'), earlier: await rootBundle.loadString('$_oldTemplatesDir/earlier.css'));
+      final project = await Isolate.run(() => analyzeEpub(path, EpubArchive.decode(bytes), templateCss: css, oldTemplates: oldTemplates));
       return Either.right((bytes: bytes, archive: EpubArchive.decode(bytes), project: project));
     } on FormatException catch (e) {
       return Either.left('No es un EPUB válido: ${e.message}');

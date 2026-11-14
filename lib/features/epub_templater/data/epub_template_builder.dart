@@ -646,7 +646,8 @@ class EpubTemplateBuilder {
       }
       final selectors = [
         for (final level in font.headingLevels.toSet().toList()..sort())
-          if (level <= 6) ...['h$level', if (level == 1) 'h1.title', if (level == 2) 'h2.subtitle'] else '.h$level',
+          // La fuente de un nivel de encabezado no alcanza al título ni al subtítulo de la página de título.
+          if (level <= 6) 'h$level' else '.h$level',
         '.${font.cssClass}',
       ];
       b

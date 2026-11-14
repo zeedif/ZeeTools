@@ -14,6 +14,7 @@ import '../domain/migration_kind.dart';
 import '../domain/migration_project.dart';
 import 'css_rules.dart';
 import 'epub_archive.dart';
+import 'legacy_styles.dart';
 import 'xhtml_utils.dart';
 
 // Clases de texto del template anterior y su equivalente.
@@ -95,7 +96,7 @@ class _Doc {
 
 // Propuesta de migración de un EPUB con el template anterior: lo que se puede deducir
 // del libro queda rellenado; lo dudoso, anotado para revisarlo.
-MigrationProject analyzeEpub(String sourcePath, EpubArchive archive, {required String templateCss}) {
+MigrationProject analyzeEpub(String sourcePath, EpubArchive archive, {required String templateCss, LegacyTemplates? oldTemplates}) {
   final readIssues = <MigrationIssue>[];
   final oldNav = _oldNav(archive);
   final docs = [
@@ -116,7 +117,7 @@ MigrationProject analyzeEpub(String sourcePath, EpubArchive archive, {required S
         for (final e in d.doc!.descendants.whereType<XmlElement>()) ...classesOf(e),
   };
   final templateClasses = {...parseCss(templateCss).expand((r) => selectorsOf(r.prelude)).expand(classNames), ..._sigilClasses};
-  final styles = _styles(archive, cssPaths, used, templateClasses);
+  final styles = _styles(archive, cssPaths, used, templateClasses, templateCss, oldTemplates);
 
   for (final d in docs) {
     for (final img in d.images) {
@@ -385,7 +386,7 @@ BookMetadata _metadata(EpubArchive archive) {
 typedef _Styles = ({Map<String, List<String>> renames, List<String> unknown, String customCss, List<String> sheets});
 
 // Clases antiguas → nuevas según lo que hace su regla, y lo propio del libro como CSS.
-_Styles _styles(EpubArchive archive, List<String> cssPaths, Set<String> used, Set<String> templateClasses) {
+_Styles _styles(EpubArchive archive, List<String> cssPaths, Set<String> used, Set<String> templateClasses, String templateCss, LegacyTemplates? oldTemplates) {
   final stylePath = cssPaths.where((x) => p.posix.basename(x).toLowerCase() == 'style.css').firstOrNull ?? cssPaths.firstOrNull;
   final rules = [
     for (final path in cssPaths)
@@ -426,6 +427,8 @@ _Styles _styles(EpubArchive archive, List<String> cssPaths, Set<String> used, Se
   final headingFonts = <String, Set<int>>{};
   final fallback = <String, String>{};
   final custom = <String>[];
+  // Declaraciones que ya viajan con su regla entera: «contexto|selector|propiedad».
+  final carried = <String>{};
   String renamed(String selector) => selector.replaceAllMapped(RegExp(r'\.([A-Za-z_][\w-]*)'), (m) => '.${renames[m[1]]?.firstOrNull ?? m[1]}');
   for (final (:rule, sheet: _) in rules) {
     if (rule.prelude.startsWith('@') || (rule.context.isNotEmpty && !rule.context.startsWith('@media'))) continue;
@@ -450,7 +453,10 @@ _Styles _styles(EpubArchive archive, List<String> cssPaths, Set<String> used, Se
         continue;
       }
       final own = classNames(next).where((c) => !templateClasses.contains(c) && !c.startsWith('font-')).toList();
-      if (rule.own || own.any(used.contains)) keep.add(next);
+      if (rule.own || own.any(used.contains)) {
+        keep.add(next);
+        carried.addAll([for (final d in declarations(rule.body)) '${rule.context}|${normalizeSelector(selector)}|${d.$1}']);
+      }
     }
     if (keep.isEmpty) continue;
     var body = rule.body;
@@ -464,6 +470,10 @@ _Styles _styles(EpubArchive archive, List<String> cssPaths, Set<String> used, Se
     fontsUsed.addAll(families.where(faces.containsKey));
   }
 
+  final adjustments = stylePath == null || oldTemplates == null
+      ? const <String>[]
+      : _adjustments(legacyDeltas(archive.text(stylePath), oldTemplates), StyleSheetValues(templateCss), renamed, used, carried, faces.keys.toSet(), fontsUsed);
+
   final fontCss = <String>[];
   final sortedFonts = fontsUsed.toList()..sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
   for (final family in sortedFonts) {
@@ -474,8 +484,10 @@ _Styles _styles(EpubArchive archive, List<String> cssPaths, Set<String> used, Se
       fontCss.add('@font-face {\n  font-family: "$family";\n  font-weight: ${declaration(face.body, 'font-weight') ?? 'normal'};\n  font-style: ${declaration(face.body, 'font-style') ?? 'normal'};\n  src: url(../Fonts/${fontFileName(file)});\n}');
     }
     final levels = (headingFonts[family] ?? const <int>{}).toList()..sort();
+    // El título y el subtítulo de la página de título no heredan la fuente de los encabezados: conservan la de la
+    // plantilla, o la suya si el libro les puso una propia.
     final selectors = [
-      for (final level in levels) ...['h$level', if (level == 1) 'h1.title', if (level == 2) 'h2.subtitle'],
+      for (final level in levels) 'h$level',
       '.${fontClass(family)}',
     ];
     fontCss.add('${selectors.join(',\n')} {\n  font-family: "$family", ${fallback[family] ?? 'serif'};\n}');
@@ -498,8 +510,71 @@ _Styles _styles(EpubArchive archive, List<String> cssPaths, Set<String> used, Se
       ...custom,
       if (fontCss.isNotEmpty) '/* Fuentes incrustadas */',
       ...fontCss,
+      if (adjustments.isNotEmpty) '/* Ajustes de este libro sobre el template */',
+      ...adjustments,
     ].join('\n'),
   );
+}
+
+const _imageRoles = {'fill', 'icon', 'text', 'logo'};
+const _sizing = {'width', 'height', 'max-width', 'max-height', 'min-width', 'min-height'};
+const _templateOwned = {'break-before', 'break-after', 'no-break-inside', 'hidden', 'sigil_split_marker'};
+final _navSelector = RegExp(r'(?<![\w.#-])nav(?![\w-])|epub\|type');
+final _imageSelector = RegExp(r'(?<![\w.#-])(img|figure|svg)(?![\w-])');
+
+// Reglas que devuelven al libro lo que cambió sobre el template anterior y el actual no da por sí
+// solo. Van al final de la hoja, así que ganan a las reglas del template con el mismo selector.
+List<String> _adjustments(
+  List<StyleDelta> deltas,
+  StyleSheetValues template,
+  String Function(String) renamed,
+  Set<String> used,
+  Set<String> carried,
+  Set<String> embedded,
+  Set<String> fontsUsed,
+) {
+  // <big> pasa a ser un span con la clase large.
+  String target(String selector) => normalizeSelector(renamed(selector.replaceAll(RegExp(r'(?<![\w.#-])big(?![\w-])'), '.large')));
+  final changed = {for (final d in deltas) '${d.context}|${target(d.selector)}|${d.property}'};
+  final groups = <(String, String), Map<String, String>>{};
+  for (final d in deltas) {
+    if (carried.contains('${d.context}|${d.selector}|${d.property}') || _navSelector.hasMatch(d.selector)) continue;
+    final oldClasses = classNames(d.selector);
+    if (oldClasses.contains('fuente') || !oldClasses.every(used.contains)) continue;
+    final selector = target(d.selector);
+    final classes = classNames(selector).toSet();
+    if (classes.any(_templateOwned.contains)) continue;
+    if ((classes.any(_imageRoles.contains) || _imageSelector.hasMatch(selector)) && _sizing.contains(d.property)) {
+      // Las medidas de imagen las pone el template; solo un logo con ancho propio conserva el suyo.
+      final width = _number(d.value, '%');
+      if (!(d.property == 'width' && classes.contains('logo') && width != null && (width - 54).abs() > 10)) continue;
+    }
+    if (d.property == 'font-family') {
+      final family = fontFamilies(d.value).firstOrNull;
+      if (embedded.contains(family)) {
+        // La fuente de un nivel de título se declara con las fuentes incrustadas.
+        if (RegExp(r'^h[1-6]$').hasMatch(d.selector)) continue;
+        fontsUsed.add(family!);
+      }
+    }
+    // Si el libro también cambia el selector del que este hereda, el valor heredado del template ya no sirve.
+    final inheritedChanged = changed.contains('${d.context}|${StyleSheetValues.fallbackOf(selector)}|${d.property}');
+    final current = inheritedChanged ? template.own((d.context, selector), d.property) : template.values((d.context, selector), d.property);
+    if ((current == null && d.removed) || (current ?? const []).any((v) => normalizeValue(v) == normalizeValue(d.value))) continue;
+    groups.putIfAbsent((d.context, selector), () => {})[d.property] = d.value;
+  }
+  // Selectores con las mismas declaraciones comparten regla.
+  final merged = <String, ({String context, List<String> selectors, Map<String, String> declarations})>{};
+  for (final MapEntry(key: (context, selector), value: declarations) in groups.entries) {
+    merged.putIfAbsent('$context|$declarations', () => (context: context, selectors: [], declarations: declarations)).selectors.add(selector);
+  }
+  return [
+    for (final (:context, :selectors, :declarations) in merged.values)
+      () {
+        final text = '${selectors.join(',\n')} {\n${declarations.entries.map((d) => '  ${d.key}: ${d.value};\n').join()}}';
+        return context.isEmpty ? text : '$context {\n${text.split('\n').map((l) => '  $l').join('\n')}\n}';
+      }(),
+  ];
 }
 
 double? _number(String? value, String unit) => value == null ? null : double.tryParse(RegExp('^([\\d.]+)$unit\$').firstMatch(value.trim())?.group(1) ?? '');

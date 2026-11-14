@@ -5,6 +5,7 @@ import 'package:archive/archive.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:xml/xml.dart';
 import 'package:zeetools/features/epub_migrator/data/epub_archive.dart';
+import 'package:zeetools/features/epub_migrator/data/legacy_styles.dart';
 import 'package:zeetools/features/epub_migrator/data/migration_analyzer.dart';
 import 'package:zeetools/features/epub_migrator/data/migration_writer.dart';
 import 'package:zeetools/features/epub_migrator/domain/migration_issues.dart';
@@ -115,5 +116,42 @@ void main() {
     expect(files['OEBPS/Text/capitulo01.xhtml'], isNot(contains('Texto')));
     expect(files['OEBPS/Text/notas.xhtml'], contains('href="capitulo02.xhtml#rf1"'));
     expect(files['OEBPS/Text/toc.xhtml'], contains('<a href="capitulo02.xhtml">Capítulo 2</a>'));
+  });
+
+  test('lo que el libro cambió sobre el template anterior va al final de la hoja', () {
+    // Git puede entregar la hoja con finales de línea de Windows.
+    String read(String name) => File('assets/epub_migrator/old_templates/$name.css').readAsStringSync().replaceAll('\r\n', '\n');
+    final oldTemplates = (latest: read('latest'), earlier: read('earlier'));
+    final edited = oldTemplates.latest
+        .replaceFirst('p {\n  text-indent: 0;', 'p {\n  text-indent: 1.5em;')
+        .replaceFirst('h2 {\n  font-size: 1.3750em;', 'h2 {\n  text-align: left;\n  font-size: 1.3750em;')
+        .replaceFirst('h2.subtitulo {\n  font-family: sans-serif;', 'h2.subtitulo {\n  text-align: center;');
+    expect(edited, isNot(oldTemplates.latest));
+    final project = analyzeEpub('C:/libros/mi novela.epub', EpubArchive.decode(oldTemplateEpub(styleCss: edited)), templateCss: _templateCss, oldTemplates: oldTemplates);
+    final adjustments = project.customCss.split('/* Ajustes de este libro sobre el template */').last;
+    expect(adjustments, contains('p {\n  text-indent: 1.5em;\n}'));
+    expect(adjustments, contains('h2 {\n  text-align: left;\n}'));
+    // Una regla cuya clase no aparece en el libro no se lleva.
+    expect(adjustments, isNot(contains('subtitle')));
+    // El subtítulo deja de heredar el centrado de h2: su valor propio se reafirma aunque coincida con el del template.
+    final deltas = legacyDeltas(edited, oldTemplates).where((d) => d.selector == 'h2.subtitulo' && d.property == 'text-align');
+    expect([for (final d in deltas) (d.value, d.removed)], [('center', false)]);
+    // Las clases de sangría del template siguen ganando a la regla de p.
+    expect(adjustments, isNot(contains('no-indent')));
+
+    final untouched = analyzeEpub('C:/libros/mi novela.epub', EpubArchive.decode(oldTemplateEpub(styleCss: oldTemplates.latest)), templateCss: _templateCss, oldTemplates: oldTemplates);
+    expect(untouched.customCss, isNot(contains('Ajustes de este libro')));
+
+    // Un libro hecho con una versión previa se compara con ella, no con la última.
+    expect(legacyDeltas('.borde { border: 0.0625em solid currentColor; padding: 0.6875em; }', oldTemplates), isEmpty);
+    expect(legacyDeltas('.borde { border: 0.0625em solid currentColor; padding: 0 0.6875em; }', oldTemplates), isEmpty);
+  });
+
+  test('quitar el display del template devuelve el elemento al que le da el lector', () {
+    final base = StyleSheetValues('table {\n  display: table;\n  margin: 1em;\n}\n.marco {\n  display: block;\n  color: red;\n}');
+    final book = StyleSheetValues('table {\n  margin: 1em;\n}\n.marco {\n  color: red;\n}');
+    final display = [for (final d in diffStyles(book, base)) if (d.property == 'display') d];
+    // La tabla sigue siendo una tabla y de una clase sola no se sabe qué elemento es: no hay nada que trasladar.
+    expect(display, isEmpty);
   });
 }

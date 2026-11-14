@@ -44,4 +44,5 @@ flutter:
   uses-material-design: true
   assets:
     - assets/epub_templater/
+    - assets/epub_migrator/old_templates/
     - assets/icons/

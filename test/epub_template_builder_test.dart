@@ -374,7 +374,7 @@ void main() {
     expect(utf8.decode(files['OEBPS/content.opf']!.bytes), contains('<item id="timesbd.ttf" href="Fonts/timesbd.ttf" media-type="font/ttf"/>'));
     final css = utf8.decode(files['OEBPS/Styles/style.css']!.bytes);
     expect(css, contains('font-weight: bold;\n  font-style: normal;\n  src: url(../Fonts/timesbd.ttf);'));
-    expect(css, endsWith('h1,\nh1.title,\n.h8,\n.font-times-new-roman {\n  font-family: "Times New Roman", serif;\n}\n'));
+    expect(css, endsWith('h1,\n.h8,\n.font-times-new-roman {\n  font-family: "Times New Roman", serif;\n}\n'));
   });
 
   test('el rol ARIA se deriva siempre del epub:type', () {

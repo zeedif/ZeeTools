@@ -19,7 +19,7 @@ $body
 ''';
 
 // EPUB con la forma del template anterior: capítulo partido en dos archivos, notas y clases antiguas.
-Uint8List oldTemplateEpub() {
+Uint8List oldTemplateEpub({String? styleCss}) {
   final files = <String, String>{
     'META-INF/container.xml': '<?xml version="1.0"?><container version="1.0" xmlns="urn:oasis:names:tc:opendocument:xmlns:container"><rootfiles><rootfile full-path="OEBPS/content.opf" media-type="application/oebps-package+xml"/></rootfiles></container>',
     'OEBPS/content.opf': '''<?xml version="1.0" encoding="utf-8"?>
@@ -49,7 +49,7 @@ Uint8List oldTemplateEpub() {
     'OEBPS/Text/Section0001-2.xhtml': _page('Capítulo 1', '<section epub:type="chapter">\n<header><h1 class="sigil_not_in_toc">Capítulo 1<br/><small>El inicio</small></h1></header>\n<p class="centrado salto1 carta">Texto<a href="notas.xhtml#nt1" id="rf1"><sup>1</sup></a>.</p>\n<p><big>Grande</big> y <atrong>error</atrong>.</p>\n</section>'),
     'OEBPS/Text/notas.xhtml': _page('Notas', '<section epub:type="rearnotes">\n<header><h2 class="sigil_not_in_toc">Notas</h2></header>\n<div class="nota"><p><a id="nt1" href="Section0001-2.xhtml#rf1"><sup>1</sup> Una nota.</a></p></div>\n</section>', matter: 'backmatter'),
     'OEBPS/Text/toc.xhtml': _page('Índice', '<nav epub:type="toc" id="toc"><ol><li><a href="cubierta.xhtml">Cubierta</a></li><li><a href="Section0001-1.xhtml">Capítulo 1: El inicio</a></li></ol></nav>'),
-    'OEBPS/Styles/style.css': '.centrado { text-align: center; }\n.dimg { width: 100%; }\n/* Fin del CSS */\n.carta { font-style: italic; }\n',
+    'OEBPS/Styles/style.css': styleCss ?? '.centrado { text-align: center; }\n.dimg { width: 100%; }\n/* Fin del CSS */\n.carta { font-style: italic; }\n',
   };
   final zip = Archive()..addFile(ArchiveFile.noCompress('mimetype', 20, utf8.encode('application/epub+zip')));
   for (final MapEntry(key: path, value: text) in files.entries) {

@@ -1,0 +1,717 @@
+@charset "UTF-8";
+@namespace epub "http: //www.idpf.org/2007/ops";
+/*Definición de una fuente*/
+@font-face {
+  font-family: 'Times New Roman';
+  font-weight: normal;
+  font-style: normal;
+  src: url(../Fonts/times.ttf);
+}
+@font-face {
+  font-family: 'Times New Roman';
+  font-weight: bold;
+  font-style: normal;
+  src: url(../Fonts/timesbd.ttf);
+}
+@font-face {
+  font-family: 'Times New Roman';
+  font-weight: normal;
+  font-style: italic;
+  src: url(../Fonts/timesi.ttf);
+}
+@font-face {
+  font-family: 'Times New Roman';
+  font-weight: bold;
+  font-style: italic;
+  src: url(../Fonts/timesbi.ttf);
+}
+/*RESET DE ELEMENTOS HTML5*/
+/*Debemos reiniciar para gestionar una serie de problemas de compatibilidad de HTML5 (archivos EPUB3 en aplicaciones EPUB2)*/
+article, address, aside, blockquote, canvas, dd, details, div, dl, dt, figure, figcaption, footer, h1, h2, h3, h4, h5, h6, header, hr, li, main, nav, ol, p, pre, section, summary, ul {
+  margin: 0;
+  padding: 0;
+  font-size: 1em; /*El tamaño de fuente en píxeles deshabilita la configuración del usuario en Adobe RMSDK legacy*/
+  line-height: inherit; /*Kindle lo ignora, Kobo lo necesita. Si no usa inherit, la configuración de usuario puede estar deshabilitada en algunos dispositivos Kobo*/
+  font-style: normal; /*inherit*/
+  font-weight: normal; /*inherit*/
+  text-indent: 0;
+}
+/*Necesario para la compatibilidad de etiquetas con versiones anteriores*/
+article, aside, figure, figcaption, footer, header, main, nav, section {
+  display: block;
+}
+[hidden] {
+  display: none;
+}
+/*[Induscutible] Por defecto evitar que Readium SDK justifique todo esto*/
+h1, h2, h3, h4, h5, h6, dt, pre {
+  text-align: left;
+}
+/*Remueve viñetas del nav.xhtml como norma EPUB3*/
+nav[epub|type~="toc"] ol {
+  list-style: none !important;
+}
+/*Para Kindle que no sigue la especificación EPUB3*/
+@media amzn-kf8, amzn-mobi {
+  nav ol {
+    list-style-type: none !important;
+  }
+}
+/*[Induscutible] Por defecto evitar mostrar a linear="no" representarse como linear="yes"*/
+nav[epub|type~="landmarks"], nav[epub|type~="page-list"] {
+  display: none;
+}
+a, abbr, b, bdi, bdo, cite, code, data, del, dfn, em, i, ins, kbd, mark, q, rp, rt, rtc, ruby, s, samp, small, span, strong, sub, sup, time, var {
+  color: inherit;
+  font-size: inherit;
+  font-style: inherit; /*Teniendo en cuenta la anidación de elementos en línea (por ejemplo, sup anidado en em)*/
+  font-weight: inherit; /*Teniendo en cuenta la anidación de elementos en línea (por ejemplo, em anidado en strong)*/
+  text-decoration: none;
+  vertical-align: baseline;
+}
+q {
+  quotes: none;
+}
+/*Intenta evitar una página en blanco si el elemento al final del xhtml tiene margin-bottom*/
+body>:last-child, body>section>:last-child {
+  margin-bottom: 0;
+}
+/*PAGE LAYOUT*/
+@page {
+  margin: 30px 30px 20px 30px; /*Recomendación de Barnes & Noble en esta antigua especificación: https://simg1.imagesbn.com/pimages/pubit/support/pubit_epub_formatting_guide.pdf*/
+  padding: 0;
+}
+body {
+  font-size: 100%;
+  line-height: 1.25;
+  margin: 0; /*Readium SDK anulará los márgenes de todos modos*/
+  padding: 0;
+  widows: 2; /*iBooks y Kobo soportan las lineas viudas y huérfanas*/
+  orphans: 2;
+}
+/*Evitar silabeo*/
+h1, h2, h3, h4, h5, h6, blockquote p cite, dt, pre, address, table, caption, th, td, .izquierda, .centrado, .derecha, .no-silabear {
+  adobe-hyphenate: none; /*proprietary for Adobe RMSDK legacy*/
+  -ms-hyphens: none;
+  -moz-hyphens: none;
+  -webkit-hyphens: none;
+  -epub-hyphens: none;
+  hyphens: none;
+}
+/*Evitar división de contenido entre páginas*/
+h1, h2, h3, h4, h5, h6, dt, hr {
+  page-break-inside: avoid;
+  break-inside: avoid;
+  page-break-after: avoid;
+  break-after: avoid;
+}
+@media amzn-kf8 {
+  h1, h2, h3, h4, h5, h6, dt, hr {
+    page-break-inside: auto;
+    break-inside: auto; /*Corrige la hoja en blanco debido a page-break-inside: avoid…*/
+  }
+}
+/*Encabezados*/
+h1, h2, h3, h4, h5, h6 {
+  font-size: 1.16666666em;
+  font-weight: bold;
+  text-align: center;
+}
+h1 {
+  font-size: 1.5em;
+  line-height: 1; /*1.5/f-z*/
+  margin-top: 2.5em; /*1.5/f-z*/
+  margin-bottom: 2em; /*3/f-z*/
+  font-weight: bold; /*font-weight: normal;*/
+}
+@media amzn-mobi {
+  h1 {
+    font-size: xx-large; /*Termino que ofrece más precisión para mobi 7*/
+    margin: 3em 0 2em 0; /*mobi7 no soporta valores decimales*/
+  }
+}
+h2 {
+  font-size: 1.3750em;
+  line-height: 1.09090909; /*1.5/f-z*/
+  margin-top: 2.18181818em; /*3/f-z*/
+  margin-bottom: 1.09090909em; /*1.5/f-z*/
+}
+@media amzn-mobi {
+  h2 {
+    font-size: xx-large;
+    margin: 2em 0 1em 0;
+  }
+}
+h3 {
+  font-size: 1.25em;
+  line-height: 1.2; /*1.5/f-z*/
+  margin-top: 1.2em; /*1.5/f-z*/
+  margin-bottom: 1.2em; /*1.5/f-z*/
+}
+@media amzn-mobi {
+  h3 {
+    font-size: xx-large;
+    margin: 1em 0 1em 0;
+  }
+}
+h4 {
+  font-size: 1.125em;
+  line-height: 1.33333333; /*1.5/f-z*/
+  margin-top: 1.33333333em; /*1.5/f-z*/
+  margin-bottom: 0em;
+}
+@media amzn-mobi {
+  h4 {
+    font-size: medium;
+    margin: 1em 0 0 0;
+  }
+}
+h1.titulo {
+  font-family: sans-serif;
+  font-weight: bold;
+  margin-top: 1.5em;
+  margin-bottom: 0;
+}
+h2.subtitulo {
+  font-family: sans-serif;
+  font-weight: bold;
+  margin-top: 0.5em;
+  margin-bottom: 0;
+}
+@media amzn-kf8 {
+  h1, h2 {
+    line-height: 1.2; /*Valor minimo soportado por Kindle*/
+  }
+}
+p {
+  text-indent: 0;
+  margin-top: 1em;
+  margin-right: 0;
+  margin-bottom: 1em;
+  margin-left: 0;
+  text-align: justify;
+}
+div {
+  margin-top: 1em;
+  margin-right: 0;
+  margin-bottom: 1em;
+  margin-left: 0;
+  text-align: justify;
+}
+div>p, div>ul, div>ol, div li {
+  margin: 0;
+}
+/*Bloque util para sinopsis y secciones tipo carta*/
+blockquote {
+  margin: 1.5em 5%;
+}
+@media amzn-mobi {
+  blockquote {
+    margin: 1em 5%;
+  }
+}
+blockquote p {
+  text-indent: 0;
+}
+address {
+  /*Styles*/
+}
+/*MICRO TYPOGRAPHY*/
+a {
+  text-decoration: underline; /*Nota: Kindle F8 forzará este valor a underline*/
+  /*font-weight: bold;*/
+  color: inherit;
+  -webkit-text-fill-color: inherit; /*iBooks override (iOS 9 + El Capitan in night mode)*/
+  /*inherit = text color*/
+}
+/*Notas*/
+.nota {
+  padding-top: 10%;
+  page-break-before: always;
+  break-before: column;
+}
+.nota p {
+  text-indent: 0;
+}
+.nota a {
+  text-decoration: none;
+}
+a sup {
+  font-weight: bold;
+}
+abbr {
+  /*Nota: Kindle no la admite*/
+}
+/*Cursiva*/
+i, cite, dfn, em {
+  font-style: italic;
+}
+/*Vuelve a normal cuando la cursiva se anida en cursiva*/
+i i, i cite, i dfn, i em, cite i, cite cite, cite dfn, cite em, dfn i, dfn cite, dfn dfn, dfn em, em i, em cite, em dfn, em em {
+  font-style: normal;
+}
+/*Negrita*/
+b, strong {
+  font-weight: bold;
+}
+/*Tachado*/
+del, s {
+  text-decoration: line-through;
+}
+/*Resaltado*/
+mark {
+  background-color: yellow;
+  color: inherit;
+}
+/*Subrayado*/
+ins {
+  text-decoration: underline;
+}
+/*Texto en grande, útil en onomatopeyas fuertes*/
+big, .grande {
+  font-size: 1.16666666em;
+}
+@media amzn-mobi {
+  big, .grande {
+    font-size: large;
+  }
+}
+/*Texto en versalita*/
+small, .versalita {
+  font-size: 0.83333333em;
+}
+@media amzn-mobi {
+  small, .versalita {
+    font-size: small;
+  }
+}
+/*Se ha mejorado para evitar que sub afecte line-height*/
+sub {
+  font-size: 75%;
+  line-height: 1.2;
+  vertical-align: sub; /*Fallback*/
+  vertical-align: -20%;
+}
+@media amzn-mobi {
+  sub {
+    font-size: x-small;
+  }
+}
+/*Se ha mejorado para evitar que sup afecte line-height*/
+sup {
+  font-size: 75%;
+  line-height: 1.2;
+  vertical-align: super; /*Fallback*/
+  vertical-align: 33%;
+}
+@media amzn-mobi {
+  sup {
+    font-size: x-small;
+  }
+}
+/*Texto Ruby: proporcionar información de pronunciación, traducción o transliteración para la tipografía de Asia Oriental*/
+rt {
+  font-size: 50%; /*Line-height may need to be adjusted to fit ruby text.*/
+  text-transform: full-size-kana; /*Increases the legibility of Japanese ruby characters.*/
+}
+/*Imagenes*/
+figure {
+  width: auto;
+  height: auto;
+  max-width: 100%;
+  max-height: 100%;
+  margin-right: auto;
+  margin-left: auto;
+  line-height: 0;
+  text-align: center;
+  object-fit: contain;
+}
+figcaption {
+  font-size: 0.9375em;
+  line-height: 1.6;
+}
+/*Imagenes*/
+img {
+  width: auto;
+  max-width: 100%; /*Note: Kindle F8 no admite max-width, por lo tanto, "width: auto;" como respaldo*/
+  height: auto;
+  max-height: 95%; /*Valor máximo que iBooks aplica*/
+  margin-top: 0;
+  margin-right: auto;
+  margin-bottom: 0;
+  margin-left: auto;
+  page-break-inside: avoid;
+  break-inside: avoid;
+  object-fit: contain;
+  vertical-align: bottom; /*Remove gap after the image*/
+}
+
+@media amzn-mobi {
+  img {
+    page-break-inside: auto;
+    break-inside: auto;
+  }
+}
+figure.dimg {
+  width: 100%;
+  height: 100%;
+}
+figure.banner img{
+  width: 100%;
+  height: auto;
+}
+figure.logo, figure.hr {
+  margin: 1em 0;
+}
+figure.logo img {
+  width: 54%;
+  height: auto;
+}
+figure.hr img {
+  width: auto;
+  height: 1.16666666em;
+}
+/*Colocar una imagen en el interior de un <p> o <h1>*/
+img.entexto {
+  width: auto;
+  height: 1.16666666em;
+  margin: 0 1ex;
+  vertical-align: middle;
+}
+/*Listas*/
+ul, ol, .listar{
+  padding-left: 2em;
+}
+/*Añadir ", li" para separar la lista con un espacio entre parrafos
+Tambien puede usar <li><p></p></li>*/
+ul, ol {
+  margin: 1.5em 0;/*Cambiar a 1em para coincidir con parrafos */
+  text-align: justify;
+}
+@media amzn-mobi {
+  ul, ol {
+    margin: 1em 0;
+  }
+}
+ol ol, ol ul, ul ol, ul ul {
+  padding-left: 1em;
+}
+ul {
+  list-style-type: disc;
+  list-style-position: outside;
+}
+ul ul {
+  list-style-type: square;
+}
+ol {
+  list-style-type: decimal;
+  list-style-position: outside;
+}
+ol ol {
+  list-style-type: lower-roman;
+}
+/*DEFINITION LISTS*/
+dl {
+  margin: 1.5em 0;
+  padding-left: 2em;
+}
+@media amzn-mobi {
+  dl {
+    margin: 1em 0;
+  }
+}
+dt {
+  margin: 1.5em 0 0 0;
+  font-weight: bold;
+}
+@media amzn-mobi {
+  dt {
+    margin: 1em 0 0 0;
+  }
+}
+dd {
+  /*Styles*/
+}
+dt>dfn {
+  font-style: normal;
+  font-weight: bold;
+}
+/*HORIZONTAL RULES — CONTEXT BREAKS*/
+hr {
+  width: 25%;
+  margin-left: 37.5%;
+  margin-top: 1.4375em;
+  margin-bottom: 1.4375em;
+  height: 0;
+  border: none;
+  border-top: 0.125em solid currentColor; /*currentColor = color del texto (permite modo nocturno)*/
+  opacity: 0.5; /*Opacity -> escala de grises. Si se declara opacidad para demasiados elementos en un archivo XHTML, el rendimiento de Adobe RMSDK legacy se ve afectado*/
+}
+@media amzn-mobi {
+  hr {
+    margin: 1em 0;
+  }
+}
+/*linnea con hoja en blanco para cambiar contexto*/
+hr.amplio {
+  width: 100%;
+  margin: 0;
+  height: 1.5em;
+  border: none;
+  background: none; /*Nota: anulado en modo nocturno excepto cuando se usa linear-gradient*/
+}
+/*Tablas*/
+table {
+  display: table;
+  table-layout: auto;
+  border-collapse: collapse;
+  border-spacing: 0;
+  max-width: 100%;
+  margin: 1.5em auto; /*Nota: Adobe RMSDK legacy establece auto en 0, lo cual está permitido en una footnote de las especificaciones de EPUB2*/
+  font-feature-settings: "tnum"1;
+  font-variant-numeric: tabular-nums;
+}
+@media amzn-mobi {
+  table {
+    margin: 1em 0;
+  }
+}
+caption {
+  caption-side: top; /*Nota: único valor que soporta Adobe RMSDK legacy*/
+  adobe-hyphenate: none; /*Propiedad de Adobe RMSDK legacy*/
+  -ms-hyphens: none;
+  -moz-hyphens: none;
+  -webkit-hyphens: none;
+  -epub-hyphens: none;
+  hyphens: none;
+  text-indent: 0; /*Necesario como el SDK de Readium puede definir el text-indent para p*/
+  text-align: center;
+  font-weight: bold;
+}
+tbody {
+  /*Styles*/
+}
+thead {
+  /*Styles*/
+}
+tfoot {
+  /*Styles*/
+}
+tr {
+  /*Styles*/
+}
+th {
+  empty-cells: show;
+  border: 0.125em solid currentColor; /*Current color = color of text (inverted in night mode)*/
+  padding: 0.125em 2px;
+  text-align: left;
+  font-weight: bold;
+}
+td {
+  empty-cells: show;
+  border: 0.0625em solid currentColor; /*Current color = color of text (inverted in night mode)*/
+  padding: 0.125em 2px;
+  text-align: left;
+}
+/*Tabla fija: ancho y alto de celdas toma la primera fila; las celdas de otras filas no afectan.*/
+.tabla-fija {
+  table-layout: fixed;
+}
+/*CODE*/
+pre {
+  margin: 1.5em 0 1.5em 5%;
+  word-wrap: break-word;
+  white-space: pre-wrap;
+  -ms-tab-size: 2;
+  -moz-tab-size: 2;
+  -webkit-tab-size: 2;
+  tab-size: 2;
+}
+@media amzn-mobi {
+  pre {
+    margin: 1em 0;
+  }
+}
+code, kbd, samp, var {
+  font-family: monospace; /*Incrustar una fuente porque Kobo no proporciona una monoespacio*/
+}
+/*MEDIAS*/
+audio {
+  /*Styles*/
+}
+video {
+  /*Styles*/
+}
+canvas, iframe, svg, video {
+  width: auto;
+  max-width: 100%;
+  height: auto;
+}
+svg {
+  object-fit: contain;
+}
+/*UTILITIES*/
+/*Evitar dividir una palabra entre líneas*/
+.noseparar {
+  display: inline-block;
+}
+/*Texto oculto*/
+.oculto, .sigil_split_marker {
+  /*Uso: Puntos de referencia (landmarks) en TOC de EPUB3*/
+  display: none;
+  visibility: hidden;
+}
+/*Contenido bordeado*/
+.borde {
+  border: 0.0625em solid currentColor;
+  padding: 0 0.6875em;
+}
+blockquote.aviso {
+  border: 2px solid #ff3333;
+  margin-left: 15%;
+  margin-right: 15%;
+  padding: 0 0.6875em;
+}
+blockquote.aviso p {
+  margin-top: 0.6875em;
+  margin-bottom: 0.6875em;
+  color: #ff3333;
+}
+/*Espacios entre parrafos*/
+.sinmargen {
+  margin: 0;
+}
+.salto0 {
+  margin-top: 0.5em;
+}
+@media amzn-mobi {
+  .salto0 {
+    margin-top: 0em;
+  }
+}
+.salto1 {
+  margin-top: 1.5em;
+}
+@media amzn-mobi {
+  .salto1 {
+    margin-top: 1em;
+  }
+}
+.salto2 {
+  margin-top: 2em;
+}
+.salto3 {
+  margin-top: 3em;
+}
+/*Conjunto de fuentes*/
+.sans {
+  /*Uso típico: Títulos*/
+  font-family: sans-serif;
+}
+.serif {
+  font-family: serif;
+}
+.monospace {
+  font-family: monospace;
+}
+/*Alineación de texto*/
+.justificado, .justificado p {
+  text-align: justify;
+  adobe-hyphenate: auto; /*Propiedad de Adobe RMSDK legacy*/
+  -ms-hyphens: auto;
+  -moz-hyphens: auto;
+  -webkit-hyphens: auto;
+  -epub-hyphens: auto;
+  hyphens: auto; /*before y after no están en las especificaciones pero iBooks es compatible con los tres (-webkit-)*/
+  -ms-hyphenate-limit-lines: 2;
+  -moz-hyphenate-limit-lines: 2;
+  -webkit-hyphenate-limit-lines: 2;
+  hyphenate-limit-lines: 2; /*No compatible excepto con Trident (Windows)*/
+  -ms-hyphenate-limit-chars: 6 3 2;
+  -moz-hyphenate-limit-chars: 6 3 2;
+  -webkit-hyphenate-limit-before: 3;
+  -webkit-hyphenate-limit-after: 2;
+  hyphenate-limit-chars: 6 3 2; /*No compatible excepto con Trident (Windows)*/
+  -ms-hyphenate-limit-zone: 10%;
+  -moz-hyphenate-limit-zone: 10%;
+  -webkit-hyphenate-limit-zone: 10%;
+  hyphenate-limit-zone: 10%; /*No compatible*/
+  -ms-hyphenate-limit-last: always;
+  -moz-hyphenate-limit-last: always;
+  -webkit-hyphenate-limit-last: always;
+  hyphenate-limit-last: always;
+}
+.izquierda, .izquierda p {
+  text-indent: 0; /*Necesario como Readium SDK puede definir sangría de texto para p*/
+  text-align: left;
+}
+.derecha, .derecha p {
+  text-indent: 0; /*Necesario como Readium SDK puede definir sangría de texto para p*/
+  text-align: right;
+}
+.centrado, .centrado p {
+  text-indent: 0; /*Necesario como Readium SDK puede definir sangría de texto para p*/
+  text-align: center;
+}
+/*Identacion: asangre y sinmargen*/
+.identar, .identar p {
+  text-indent: 1.5em;
+}
+.noidentar, .noidentar p {
+  text-indent: 0;
+}
+/*identa solo la primer linea*/
+.idt-ln {
+  text-indent: -1.5em;
+  margin-left: 1.5em; /*Se reajustará con la configuración del usuario del tamaño de fuente*/
+}
+@media amzn-mobi {
+  .idt-ln {
+    margin-left: 1em; /*hack para sangría de texto negativa*/
+  }
+}
+/*OTROS*/
+.no-list {
+  /*Uso: esconder números en el toc*/
+  list-style-type: none;
+}
+/*PAGE BREAKS*/
+/*No recomendado: Tiene menor soporte que after*/
+.santes {
+  break-before: column;
+}
+/*Por alguna razón, after tiene mejor soporte que before (Google, Kobo, etc.)*/
+.ssigue {
+  break-after: column;
+}
+span.separador{
+  break-before: always;
+  page-break-before: always;
+  break-after: always;
+  page-break-after: always;
+}
+/*Funciona en iBooks, útil para figuras o para mantener 2 elementos juntos*/
+/*Antes era blq*/
+.nosepag {
+  page-break-inside: avoid;
+  break-inside: avoid;
+}
+@media amzn-kf8 {
+  .nosepag {
+    page-break-inside: auto;
+    break-inside: auto; /*Corrige el error en blanco debido a page-break-inside: avoid…*/
+  }
+}
+/*FIN DEL CSS*/
+h1 {
+  font-family: "Times New Roman", Times New Roman, sans-serif;
+}
+
+.fuente {
+  font-family: "Times New Roman", Times New Roman, serif;
+}
+/*
+p {
+  text-indent: 1.5em;
+}
+*/
